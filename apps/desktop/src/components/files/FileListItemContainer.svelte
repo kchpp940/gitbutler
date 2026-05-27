@@ -86,11 +86,8 @@
 	);
 
 	function onCheck(checked: boolean) {
-		if (checked) {
-			uncommittedService.checkFile(stackId || null, change.path);
-		} else {
-			uncommittedService.uncheckFile(stackId || null, change.path);
-		}
+		if (selectionId.type !== "worktree") return;
+		idSelection.toggleFileHunkSelection(checked, stackId || null, change.path);
 	}
 
 	const checkStatus = $derived(

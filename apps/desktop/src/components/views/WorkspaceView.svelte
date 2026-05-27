@@ -6,7 +6,7 @@
 	import MultiStackView from "$components/views/MultiStackView.svelte";
 	import UnassignedView from "$components/views/UnassignedView.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
-	import { createWorktreeSelection } from "$lib/selection/key";
+	import { type SelectionId } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
@@ -26,36 +26,88 @@
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const uiState = inject(UI_STATE);
 
-	const selectionId = createWorktreeSelection({ stackId: undefined });
-	const worktreeSelection = $derived(idSelection.getById(selectionId));
+	// The single source of truth for which worktree selection is active.
+	// Clicking any file in any lane updates this immediately, so the
+	// diff panel and file tree highlight always stay in sync.
+	let activeSelectionId = $state<SelectionId | undefined>();
+
+	$effect(() => {
+		return idSelection.activeSelectionId.subscribe((id) => {
+			activeSelectionId = id;
+		});
+	});
+
+	const activeSelection = $derived(
+		activeSelectionId ? idSelection.getById(activeSelectionId) : undefined,
+	);
+
+	// Track start index for MultiDiffView. Must use a subscription because
+	// $derived + get() doesn't track writable value changes when the
+	// selection object itself hasn't changed (e.g. clicking a different
+	// file in the same stack).
+	let activeStartIndex = $state(0);
+
+	$effect(() => {
+		const sel = activeSelection;
+		if (!sel) {
+			activeStartIndex = 0;
+			return;
+		}
+		return sel.lastAdded.subscribe((value) => {
+			activeStartIndex = value?.index ?? 0;
+		});
+	});
+
+	// Whether the left preview panel should be visible.
+	let previewOpen = $state(false);
+
+	$effect(() => {
+		const sel = activeSelection;
+		if (!sel) {
+			previewOpen = false;
+			return;
+		}
+		return sel.lastAdded.subscribe((value) => {
+			previewOpen = value?.key !== undefined;
+		});
+	});
+
+	// When active selection changes, resolve the correct changes list to display.
+	const activeChanges = $derived(() => {
+		const sel = activeSelectionId;
+		if (!sel || sel.type !== "worktree") return [];
+		return uncommittedService.getChangesByStackId(sel.stackId ?? null);
+	});
+
 	const stacksQuery = $derived(stackService.stacks(projectId));
-
-	const lastAdded = $derived(worktreeSelection.lastAdded);
-	const previewOpen = $derived(!!$lastAdded?.key);
-
-	// Transform unassigned changes to SelectedFile[] format
-	const unassignedChanges = $derived(uncommittedService.getChangesByStackId(null));
 	const projectState = $derived(uiState.project(projectId));
 	const exclusiveAction = $derived(projectState.exclusiveAction.current);
 	const isCommitting = $derived(exclusiveAction?.type === "commit");
 
 	let multiDiffView = $state<MultiDiffView>();
-	let startIndex = $state(0);
 
 	let visibleRange = $state<{ start: number; end: number } | undefined>();
 
 	function onVisibleChange(change: { start: number; end: number } | undefined) {
 		visibleRange = change;
 	}
+
+	// Jump MultiDiffView to the active file's index whenever active selection changes.
+	$effect(() => {
+		const idx = activeStartIndex;
+		if (idx !== undefined) {
+			multiDiffView?.jumpToIndex(idx);
+		}
+	});
 </script>
 
 {#snippet leftPreview()}
 	<MultiDiffView
 		{projectId}
-		{startIndex}
-		selectionId={{ type: "worktree" }}
-		stackId={undefined}
-		changes={unassignedChanges}
+		startIndex={activeStartIndex}
+		selectionId={activeSelectionId ?? { type: "worktree" }}
+		stackId={activeSelectionId?.type === "worktree" ? activeSelectionId.stackId : undefined}
+		changes={activeChanges}
 		bind:this={multiDiffView}
 		draggable={true}
 		selectable={isCommitting}
@@ -63,7 +115,9 @@
 		showRoundedEdges={false}
 		{onVisibleChange}
 		onclose={() => {
-			idSelection.clear(selectionId);
+			if (activeSelectionId) {
+				idSelection.clear(activeSelectionId);
+			}
 		}}
 	/>
 {/snippet}
@@ -80,10 +134,6 @@
 		<UnassignedView
 			{projectId}
 			{visibleRange}
-			onFileClick={(index) => {
-				startIndex = index;
-				multiDiffView?.jumpToIndex(index);
-			}}
 		/>
 	{/snippet}
 	{#snippet middle()}
@@ -92,7 +142,7 @@
 				<FullviewLoading />
 			{/snippet}
 			{#snippet children(stacks, { projectId })}
-				<MultiStackView {projectId} {stacks} {selectionId} {scrollToStackId} {onScrollComplete} />
+				<MultiStackView {projectId} {stacks} {scrollToStackId} {onScrollComplete} />
 			{/snippet}
 		</ReduxResult>
 	{/snippet}

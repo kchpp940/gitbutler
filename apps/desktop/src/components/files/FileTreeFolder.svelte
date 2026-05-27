@@ -64,11 +64,8 @@
 	let draggableEl: HTMLDivElement | undefined = $state();
 
 	function handleCheck(checked: boolean) {
-		if (checked) {
-			uncommittedService.checkDir(stackId || null, folderPath);
-		} else {
-			uncommittedService.uncheckDir(stackId || null, folderPath);
-		}
+		if (selectionId.type !== "worktree") return;
+		idSelection.toggleFolderHunkSelection(checked, stackId || null, folderPath);
 	}
 
 	function getTreeChanges() {

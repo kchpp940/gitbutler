@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Checkbox } from "@gitbutler/ui";
@@ -10,15 +11,12 @@
 	const { stackId }: Props = $props();
 
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 
 	const checkStatus = $derived(uncommittedService.stackCheckStatus(stackId));
 
 	function onCheck(checked: boolean) {
-		if (checked) {
-			uncommittedService.checkAll(stackId || null);
-		} else {
-			uncommittedService.uncheckAll(stackId || null);
-		}
+		idSelection.toggleStackHunkSelection(checked, stackId || null);
 	}
 </script>
 

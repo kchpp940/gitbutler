@@ -244,7 +244,7 @@
 					{/snippet}
 				</ReduxResult>
 			</div>
-		{:else if focusedFileStore}
+		{:else if focusedFileStore && controller.hasActiveWorktreeSelection}
 			<MultiDiffView
 				{stackId}
 				selectionId={{ type: "worktree", stackId }}
