@@ -3,6 +3,7 @@
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { ContextMenuItem, ContextMenuSection, Icon, KebabButton } from "@gitbutler/ui";
+	import { isDefined } from "@gitbutler/ui/utils/typeguards";
 	import type { Stack } from "$lib/stacks/stack";
 
 	type Props = {
@@ -35,18 +36,18 @@
 		const [removed] = newStacks.splice(currentStackIndex, 1);
 		if (!removed) return;
 
-		// Insert at the beginning (leftmost position)
 		newStacks.unshift(removed);
 
-		await stackService.updateStackOrder({
-			projectId,
-			stacks: newStacks
-				.map((stack, i) => (stack.id ? { id: stack.id, order: i } : undefined))
-				.filter((s): s is { id: string; order: number } => s !== undefined),
-		});
+		const orderedStackIds = newStacks.map((s) => s.id).filter(isDefined);
 
-		// Refetch to update the UI
-		await stacksQuery.result.refetch();
+		try {
+			await stackService.updateStackOrder({
+				projectId,
+				orderedStackIds,
+			});
+		} catch {
+			// On failure, the optimistic rollback will restore the correct state
+		}
 	}
 
 	async function moveStackRight() {
@@ -56,18 +57,18 @@
 		const [removed] = newStacks.splice(currentStackIndex, 1);
 		if (!removed) return;
 
-		// Insert at the end (rightmost position)
 		newStacks.push(removed);
 
-		await stackService.updateStackOrder({
-			projectId,
-			stacks: newStacks
-				.map((stack, i) => (stack.id ? { id: stack.id, order: i } : undefined))
-				.filter((s): s is { id: string; order: number } => s !== undefined),
-		});
+		const orderedStackIds = newStacks.map((s) => s.id).filter(isDefined);
 
-		// Refetch to update the UI
-		await stacksQuery.result.refetch();
+		try {
+			await stackService.updateStackOrder({
+				projectId,
+				orderedStackIds,
+			});
+		} catch {
+			// On failure, the optimistic rollback will restore the correct state
+		}
 	}
 
 	async function unapplyStack() {

@@ -53,14 +53,6 @@ export class StackController {
 
 	private _focusedFile = $state<SelectedFile | undefined>();
 	private _stagedFocusedFile = $state<SelectedFile | undefined>();
-	private _stagedFocusedIndex = $state<number | undefined>(undefined);
-
-	/**
-	 * True when the global `FileSelectionManager.activeSelectionId`
-	 * points to this stack's worktree lane. Drives whether the staged
-	 * file diff should render in StackDetails.
-	 */
-	private _activeSelectionMatchesStack = $state(false);
 
 	constructor(params: {
 		projectId: () => string;
@@ -88,44 +80,11 @@ export class StackController {
 			const store = this.stagedFocusedFileStore;
 			if (!store) {
 				this._stagedFocusedFile = undefined;
-				this._stagedFocusedIndex = undefined;
 				return;
 			}
 			return store.subscribe((value) => {
 				this._stagedFocusedFile = value?.key ? readKey(value.key) : undefined;
-				this._stagedFocusedIndex = value?.index;
 			});
-		});
-
-		// Subscribe to the global active selection so this controller
-		// knows when a file in its lane is actively being viewed.
-		$effect(() => {
-			return this.fileSelection.activeSelectionId.subscribe((active) => {
-				if (active?.type === "worktree") {
-					this._activeSelectionMatchesStack =
-						(active.stackId ?? null) === (this.stackId ?? null);
-				} else {
-					this._activeSelectionMatchesStack = false;
-				}
-			});
-		});
-
-		// When a staged file in this stack is actively selected, clear
-		// any lingering commit/branch selection so the worktree diff
-		// renders without stale UI state.
-		$effect(() => {
-			if (this._activeSelectionMatchesStack && (this.commitId || this.branchName)) {
-				this.selection.set(undefined);
-			}
-		});
-
-		// Scroll the diff view to the clicked file whenever the staged
-		// selection changes and this stack is actively being viewed.
-		$effect(() => {
-			const idx = this._stagedFocusedIndex;
-			if (idx !== undefined && this._activeSelectionMatchesStack) {
-				this.jumpToIndex(idx);
-			}
 		});
 	}
 
@@ -262,15 +221,7 @@ export class StackController {
 	}
 
 	get hasStagedFileFocused(): boolean {
-		return !!this._stagedFocusedFile && this._activeSelectionMatchesStack;
-	}
-
-	/**
-	 * Exposed so templates can guard worktree diff rendering against
-	 * the global active selection.
-	 */
-	get hasActiveWorktreeSelection(): boolean {
-		return this._activeSelectionMatchesStack;
+		return !!this.stagedFocusedFile;
 	}
 
 	get ircPanelOpen(): boolean {

@@ -70,15 +70,7 @@ export class MoveCommitDzHandler implements DropzoneHandler {
 			targetCommitId: "top",
 		});
 
-		// Clear the selection from the source lane if any dragged commit was selected
-		const sourceSelection = untrack(() => this.uiState.lane(data.stackId).selection.current);
-		if (
-			sourceSelection?.commitId &&
-			data.allCommits.some((c) => c.id === sourceSelection.commitId)
-		) {
-			this.uiState.lane(data.stackId).selection.set(undefined);
-		}
-
+		const sourceBranchName = data.commit.branchName;
 		const commitIds = data.allCommits.map((c) => c.id);
 		let result: DropResult | undefined;
 		await withStackBusy(
@@ -88,11 +80,14 @@ export class MoveCommitDzHandler implements DropzoneHandler {
 			async () => {
 				try {
 					await this.stackService.commitMove({
+						kind: "commit",
 						projectId: this.projectId,
 						subjectCommitIds: commitIds,
 						relativeTo,
 						side,
 						dryRun: false,
+						sourceStackId: data.stackId,
+						sourceBranchName,
 					});
 				} catch (error) {
 					const { description, message } = parseError(error);

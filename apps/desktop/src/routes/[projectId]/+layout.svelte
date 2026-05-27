@@ -180,33 +180,26 @@
 	const worktreeDataQuery = $derived(worktreeService.worktreeData(projectId));
 	const worktreeData = $derived(worktreeDataQuery.response);
 
-	// Bridge between RTKQ and custom slice, then immediately prune stale
-	// file selections and hunk selections based on the SAME snapshot.
-	// Doing both in one effect ensures we use a consistent view of the
-	// worktree state — no race between effect ordering.
+	// Bridge between RTKQ and custom slice
 	$effect(() => {
-		const data = worktreeData;
-		if (!data) return;
-		untrack(() => {
-			uncommittedService.updateData({
-				changes: data.rawChanges,
-				assignments: data.hunkAssignments,
+		if (worktreeData) {
+			untrack(() => {
+				uncommittedService.updateData({
+					changes: worktreeData.rawChanges,
+					assignments: worktreeData.hunkAssignments,
+				});
 			});
-			// Build filters from the data we just pushed, not from whatever
-			// happens to be in the slice after Redux has processed it.
-			const paths = data.rawChanges.map((c) => c.path);
-			const stackPaths = new Map<string | null, string[]>();
-			stackPaths.set(null, []);
-			for (const assignment of data.hunkAssignments) {
-				const list = stackPaths.get(assignment.stackId);
-				if (list) {
-					list.push(assignment.path);
-				} else {
-					stackPaths.set(assignment.stackId, [assignment.path]);
-				}
-			}
-			idSelection.retain(paths, stackPaths);
-		});
+		}
+	});
+
+	// Clear expired file selections
+	const affectedPaths = $derived(worktreeData?.rawChanges.map((c) => c.path));
+	$effect(() => {
+		if (affectedPaths) {
+			untrack(() => {
+				idSelection.retain(affectedPaths);
+			});
+		}
 	});
 
 	// =============================================================================

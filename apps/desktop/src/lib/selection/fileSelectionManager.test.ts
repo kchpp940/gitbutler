@@ -258,57 +258,6 @@ describe("FileSelectionManager", () => {
 
 			expect(mgr.collectionSize(id)).toBe(2);
 		});
-
-		test("prunes per-stack worktree selections via stackPaths", () => {
-			const mgr = createManager();
-			const unassigned = worktreeId();
-			const stackA = worktreeId("stack-a");
-
-			mgr.add("a.ts", unassigned, 0);
-			mgr.add("b.ts", unassigned, 1);
-			mgr.add("c.ts", stackA, 0);
-			mgr.add("d.ts", stackA, 1);
-
-			const stackPaths = new Map<string | null, string[]>();
-			stackPaths.set(null, ["a.ts"]);
-			stackPaths.set("stack-a", ["d.ts"]);
-
-			mgr.retain(["a.ts", "b.ts", "c.ts", "d.ts"], stackPaths);
-
-			expect(mgr.has("a.ts", unassigned)).toBe(true);
-			expect(mgr.has("b.ts", unassigned)).toBe(false);
-			expect(mgr.has("c.ts", stackA)).toBe(false);
-			expect(mgr.has("d.ts", stackA)).toBe(true);
-		});
-
-		test("removes worktree selections across every stack when the file is gone globally", () => {
-			const mgr = createManager();
-			const stackA = worktreeId("stack-a");
-			const stackB = worktreeId("stack-b");
-
-			mgr.add("a.ts", stackA, 0);
-			mgr.add("a.ts", stackB, 0);
-
-			const stackPaths = new Map<string | null, string[]>();
-			stackPaths.set("stack-a", ["a.ts"]);
-			stackPaths.set("stack-b", ["a.ts"]);
-
-			mgr.retain(["z.ts"], stackPaths);
-
-			expect(mgr.has("a.ts", stackA)).toBe(false);
-			expect(mgr.has("a.ts", stackB)).toBe(false);
-		});
-
-		test("leaves non-worktree selections untouched", () => {
-			const mgr = createManager();
-			const commit = commitId("abc");
-
-			mgr.add("a.ts", commit, 0);
-
-			mgr.retain([]);
-
-			expect(mgr.has("a.ts", commit)).toBe(true);
-		});
 	});
 
 	describe("removeMany", () => {

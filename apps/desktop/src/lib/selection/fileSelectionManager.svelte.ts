@@ -20,26 +20,6 @@ import type { WorktreeService } from "$lib/worktree/worktreeService.svelte";
 import type { HunkAssignment } from "@gitbutler/but-sdk";
 import type { TreeChange } from "@gitbutler/but-sdk";
 
-function selectionKeyMatches(a: SelectionId | undefined, b: SelectionId | undefined): boolean {
-	if (!a || !b) return false;
-	if (a.type !== b.type) return false;
-	switch (a.type) {
-		case "worktree":
-			return (a as any).stackId === (b as any).stackId;
-		case "commit":
-			return a.commitId === (b as any).commitId && a.stackId === (b as any).stackId;
-		case "branch":
-			return (
-				a.branchName === (b as any).branchName &&
-				a.remote === (b as any).remote &&
-				a.stackId === (b as any).stackId
-			);
-		case "snapshot":
-			return a.snapshotId === (b as any).snapshotId;
-	}
-	return false;
-}
-
 // Structural type for the return value of change-by-path queries.
 type ChangeResult = { result: Result<TreeChange>; response: TreeChange | undefined };
 
@@ -67,19 +47,8 @@ export const FILE_SELECTION_MANAGER = new InjectionToken<FileSelectionManager>(
 
 /**
  * File selection mechanism based on strings id's.
- *
- * Maintains per-context selections (worktree unassigned, worktree per-stack,
- * commits, branches, snapshots) and tracks which selection is currently
- * active. Components observe the active selection to know which file tree
- * to highlight and which diffs to render.
  */
 export class FileSelectionManager {
-	/**
-	 * The currently-active selection context. Updated whenever set/add is
-	 * called on a worktree-type selection. Undefined means no selection.
-	 */
-	readonly activeSelectionId: Writable<SelectionId | undefined>;
-
 	private selections: Map<
 		/** Return value of `selectionKey`. */
 		string,
@@ -105,7 +74,6 @@ export class FileSelectionManager {
 		private oplogService: OplogService,
 		private historyService: HistoryService,
 	) {
-		this.activeSelectionId = writable<SelectionId | undefined>(undefined);
 		this.selections = new Map();
 		this.selections.set(selectionKey(createWorktreeSelection({ stackId: undefined })), {
 			entries: new SvelteSet<SelectedFileKey>(),
@@ -135,25 +103,16 @@ export class FileSelectionManager {
 		const selection = this.getById(id);
 		selection.lastAdded.set({ index, key: selectedKey });
 		selection.entries.add(selectedKey);
-		if (id.type === "worktree") {
-			this.activeSelectionId.set(id);
-		}
 	}
 
 	addMany(paths: string[], id: SelectionId, last: { path: string; index: number }) {
 		for (const path of paths) {
-			const selectedKey = key({ ...id, path });
-			const selection = this.getById(id);
-			selection.lastAdded.set({ index: last.index, key: selectedKey });
-			selection.entries.add(selectedKey);
+			this.add(path, id, last.index);
 		}
 
 		const selectedKey = key({ ...id, path: last.path });
 		const selection = this.getById(id);
 		selection.lastAdded.set({ index: last.index, key: selectedKey });
-		if (id.type === "worktree") {
-			this.activeSelectionId.set(id);
-		}
 	}
 
 	has(path: string, id: SelectionId) {
@@ -167,60 +126,6 @@ export class FileSelectionManager {
 		this.add(path, id, index);
 	}
 
-	/**
-	 * Toggle a single file's checkbox state.
-	 *
-	 * Only affects the hunk selection (checkbox / commit readiness). Does NOT
-	 * touch the file preview selection or the active selection — so the
-	 * current diff view stays focused on whatever the user was looking at.
-	 */
-	toggleFileHunkSelection(
-		shouldCheck: boolean,
-		stackId: string | null,
-		path: string,
-	): void {
-		if (shouldCheck) {
-			this.uncommittedService.checkFile(stackId, path);
-		} else {
-			this.uncommittedService.uncheckFile(stackId, path);
-		}
-	}
-
-	/**
-	 * Toggle all files in a directory via their checkboxes.
-	 *
-	 * Only affects the hunk selection (checkbox / commit readiness). Does NOT
-	 * touch the file preview selection or the active selection.
-	 */
-	toggleFolderHunkSelection(
-		shouldCheck: boolean,
-		stackId: string | null,
-		folderPath: string,
-	): void {
-		if (shouldCheck) {
-			this.uncommittedService.checkDir(stackId, folderPath);
-		} else {
-			this.uncommittedService.uncheckDir(stackId, folderPath);
-		}
-	}
-
-	/**
-	 * Toggle every file in a worktree lane via the "Select All" checkbox.
-	 *
-	 * Only affects the hunk selection (checkbox / commit readiness). Does NOT
-	 * touch the file preview selection or the active selection.
-	 */
-	toggleStackHunkSelection(
-		shouldCheck: boolean,
-		stackId: string | null,
-	): void {
-		if (shouldCheck) {
-			this.uncommittedService.checkAll(stackId);
-		} else {
-			this.uncommittedService.uncheckAll(stackId);
-		}
-	}
-
 	remove(path: string, id: SelectionId) {
 		const selectionKey = key({ path, ...id });
 		const selection = this.getById(id);
@@ -228,25 +133,12 @@ export class FileSelectionManager {
 		if (get(selection.lastAdded)?.key === selectionKey) {
 			selection.lastAdded.set(undefined);
 		}
-		if (
-			id.type === "worktree" &&
-			selection.entries.size === 0 &&
-			selectionKeyMatches(id, get(this.activeSelectionId))
-		) {
-			this.activeSelectionId.set(undefined);
-		}
 	}
 
 	clear(selectionId: SelectionId) {
 		const selection = this.getById(selectionId);
 		selection.entries.clear();
 		selection.lastAdded.set(undefined);
-		if (
-			selectionId.type === "worktree" &&
-			selectionKeyMatches(selectionId, get(this.activeSelectionId))
-		) {
-			this.activeSelectionId.set(undefined);
-		}
 	}
 
 	clearPreview(selectionId: SelectionId) {
@@ -342,63 +234,34 @@ export class FileSelectionManager {
 	}
 
 	/**
-	 * Discards file selections and associated hunk selections that are no
-	 * longer present in the current worktree state.
+	 * Function that discards any selection not present in the input array.
 	 *
-	 * Call this whenever the back end pushes a fresh worktree snapshot
-	 * (raw changes + hunk assignments). It walks every known worktree
-	 * selection (the unassigned lane plus any per-stack lanes) and removes
-	 * files whose paths are no longer represented in that lane's filtered
-	 * list, along with any stale hunk selections for those files. This
-	 * keeps the file tree highlight, the diff panel, and the checkbox
-	 * state in sync across all lanes instead of relying on component-level
-	 * refresh fallbacks.
-	 *
-	 * @param paths Global list of currently-existing worktree paths. Files
-	 *   not present here are removed from every worktree selection,
-	 *   regardless of stack.
-	 * @param stackPaths Optional map of `stackId → paths` filtered by that
-	 *   stack's hunk assignments. When provided, a per-stack worktree
-	 *   selection is additionally pruned to only files whose paths appear
-	 *   in the corresponding entry. Pass `null` for the unassigned lane
-	 *   key to override its filter.
+	 * This should be called when the back end pushes a new state of the
+	 * current worktree changes. Note that this function is a special case
+	 * for a particular key. It feels a bit out of place.
 	 */
-	retain(paths: string[] | undefined, stackPaths?: Map<string | null, string[]>) {
+	retain(paths: string[] | undefined) {
 		if (paths === undefined) {
 			this.selections.clear();
 			return;
 		}
-
 		const removedFiles: SelectedFile[] = [];
+		const worktreeSelection = this.selections.get(
+			selectionKey(createWorktreeSelection({ stackId: undefined })),
+		);
+		if (!worktreeSelection) return;
 
-		for (const [, selection] of this.selections) {
-			for (const entry of selection.entries) {
-				const parsed = readKey(entry);
-				if (parsed.type !== "worktree") continue;
-				if (!paths.includes(parsed.path)) {
-					removedFiles.push(parsed);
-					continue;
-				}
-				if (stackPaths) {
-					const stackFilter = stackPaths.get(parsed.stackId ?? null);
-					if (stackFilter && !stackFilter.includes(parsed.path)) {
-						removedFiles.push(parsed);
-					}
-				}
+		for (const selectedFile of worktreeSelection.entries) {
+			const parsedKey = readKey(selectedFile);
+			if (!paths.includes(parsedKey.path)) {
+				removedFiles.push(parsedKey);
 			}
 		}
-
 		if (removedFiles.length > 0) {
-			for (const file of removedFiles) {
-				// Also clear hunk selections for pruned files so the
-				// checkbox state doesn't linger after a file moves
-				// between lanes or disappears.
-				if (file.type === "worktree") {
-					this.uncommittedService.uncheckFile(file.stackId ?? null, file.path);
-				}
-			}
 			this.removeMany(removedFiles);
 		}
+		// TODO: Is this the right thing to do here?
+		// worktreeSelection.lastAdded.set(undefined);
 	}
 
 	/**

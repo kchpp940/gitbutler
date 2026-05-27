@@ -175,6 +175,10 @@
 					onDropzoneHovered={(hovered) => {
 						dropzoneHovered = hovered;
 					}}
+					onFileClick={(index) => {
+						controller.selection.set(undefined);
+						controller.jumpToIndex(index);
+					}}
 				>
 					{#snippet emptyPlaceholder()}
 						{#if !controller.isCommitting}

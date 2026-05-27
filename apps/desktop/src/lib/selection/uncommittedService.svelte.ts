@@ -418,38 +418,6 @@ export class UncommittedService {
 		return stackIdChanges;
 	}
 
-	/**
-	 * Returns every stack id currently represented in the hunk-assignments
-	 * table, including `null` for the unassigned lane.
-	 */
-	knownStackIds(): Array<string | null> {
-		const ids = new Set<string | null>();
-		ids.add(null);
-		for (const assignment of Object.values(this.state.hunkAssignments.entities)) {
-			if (assignment) ids.add(assignment.stackId);
-		}
-		return Array.from(ids);
-	}
-
-	/**
-	 * Returns a `stackId → paths` map describing which files are currently
-	 * assigned to each lane. The unassigned lane is keyed by `null`.
-	 */
-	pathsByStackId(): Map<string | null, string[]> {
-		const byStack = new Map<string | null, string[]>();
-		byStack.set(null, []);
-		for (const assignment of Object.values(this.state.hunkAssignments.entities)) {
-			if (!assignment) continue;
-			const list = byStack.get(assignment.stackId);
-			if (list) {
-				list.push(assignment.path);
-			} else {
-				byStack.set(assignment.stackId, [assignment.path]);
-			}
-		}
-		return byStack;
-	}
-
 	changesByStackId(stackId: string | null): Reactive<TreeChange[]> {
 		const changes = $derived(this.getChangesByStackId(stackId));
 		return reactive(() => changes);

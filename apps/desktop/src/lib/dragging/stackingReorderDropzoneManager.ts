@@ -37,17 +37,22 @@ export class ReorderCommitDzHandler implements DropzoneHandler {
 			targetBranchName: this.currentSeriesName,
 			targetCommitId: this.commitId,
 		});
+
+		const sourceBranchName = data.commit.branchName;
 		await withStackBusy(
 			this.uiState,
 			this.projectId,
 			{ commitId: data.commit.id, stackIds: [data.stackId] },
 			async () => {
 				await this.stackService.commitMove({
+					kind: "commit",
 					projectId: this.projectId,
 					subjectCommitIds: [data.commit.id],
 					relativeTo,
 					side,
 					dryRun: false,
+					sourceStackId: data.stackId,
+					sourceBranchName,
 				});
 			},
 		);
