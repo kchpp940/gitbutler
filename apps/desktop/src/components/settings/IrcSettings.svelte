@@ -6,6 +6,7 @@
 	import { Badge, Button, CardGroup, Textbox, Toggle } from "@gitbutler/ui";
 	import type { IconName } from "@gitbutler/ui";
 	import type { ComponentColorType } from "@gitbutler/ui/utils/colorTypes";
+	import { bindGeneralField } from "$lib/settings/settingsDraft";
 
 	const settingsService = inject(SETTINGS_SERVICE);
 	const userService = inject(USER_SERVICE);
@@ -14,6 +15,24 @@
 	const settings = settingsService.appSettings;
 
 	const irc = $derived($settings?.irc);
+
+	const ircEnabled = bindGeneralField<boolean>(
+		"ircEnabled",
+		() => $settings?.irc?.connection?.enabled ?? false,
+		(v) => settingsService.updateIrc({ connection: { enabled: v } }),
+	);
+
+	const ircHost = bindGeneralField<string>(
+		"ircHost",
+		() => $settings?.irc?.server?.host ?? "",
+		(v) => settingsService.updateIrc({ server: { host: v } }),
+	);
+
+	const ircAutoShare = bindGeneralField<boolean>(
+		"ircAutoShare",
+		() => $settings?.irc?.autoShare ?? false,
+		(v) => settingsService.updateIrc({ autoShare: v }),
+	);
 
 	function connectionBadge(state: string | undefined): {
 		style: ComponentColorType;
@@ -46,7 +65,7 @@
 
 	async function disconnect() {
 		await ircApiService.disconnect();
-		await settingsService.updateIrc({ connection: { enabled: false } });
+		ircEnabled.set(false);
 	}
 </script>
 
@@ -63,7 +82,7 @@
 					size="large"
 					label="Server Host"
 					placeholder="irc.gitbutler.com"
-					onchange={(value) => settingsService.updateIrc({ server: { host: value } })}
+					onchange={(value) => ircHost.set(value)}
 				/>
 			</div>
 		</CardGroup.Item>
@@ -78,8 +97,8 @@
 			{#snippet actions()}
 				<Toggle
 					id="auto-share"
-					checked={irc.autoShare}
-					onclick={() => settingsService.updateIrc({ autoShare: !irc.autoShare })}
+					checked={ircAutoShare.current}
+					onclick={() => ircAutoShare.set(!ircAutoShare.current)}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -103,11 +122,8 @@
 			{#snippet actions()}
 				<Toggle
 					id="irc-enabled"
-					checked={irc.connection.enabled}
-					onclick={() =>
-						settingsService.updateIrc({
-							connection: { enabled: !irc.connection.enabled },
-						})}
+					checked={ircEnabled.current}
+					onclick={() => ircEnabled.set(!ircEnabled.current)}
 				/>
 			{/snippet}
 		</CardGroup.Item>

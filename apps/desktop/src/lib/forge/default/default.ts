@@ -14,7 +14,6 @@ export class DefaultForge implements Forge {
 	name: ForgeName;
 	authenticated = false;
 	isLoading = false;
-	scopeId = "default";
 
 	constructor() {
 		this.name = "default";
@@ -49,5 +48,4 @@ export class DefaultForge implements Forge {
 	invalidate(_tags: TagDescription<ReduxTag>[]) {
 		return undefined;
 	}
-	dispose(): void {}
 }

@@ -25,12 +25,10 @@ export class GitLab implements Forge {
 	readonly name: ForgeName = "gitlab";
 	readonly authenticated: boolean;
 	readonly isLoading: boolean;
-	readonly scopeId: string;
 	private baseUrl: string;
 	private baseBranch: string;
 	private forkStr?: string;
 	private api: ReturnType<typeof injectEndpoints>;
-	private _listService?: GitLabListingService;
 
 	constructor(
 		private params: ForgeArguments & {
@@ -39,11 +37,10 @@ export class GitLab implements Forge {
 			backendApi: BackendApi;
 			client: GitLabClient;
 			dispatch: AppDispatch;
-			getState: () => any;
 			isLoading: boolean;
 		},
 	) {
-		const { api, baseBranch, forkStr, authenticated, repo, isLoading, client, projectId } = this.params;
+		const { api, baseBranch, forkStr, authenticated, repo, isLoading } = this.params;
 		// Use the protocol from repo if available, otherwise default to https
 		// For SSH remote URLs, always use HTTPS for browser compatibility
 		let protocol = repo.protocol?.endsWith(":")
@@ -60,12 +57,8 @@ export class GitLab implements Forge {
 		this.forkStr = forkStr;
 		this.authenticated = authenticated;
 		this.isLoading = isLoading;
-		this.scopeId = this.createScopeId("gitlab", projectId, repo.owner, repo.name, client.tokenId);
 
 		this.api = injectEndpoints(api);
-
-		// Reset the API when the token or project changes.
-		client.onReset(() => this.dispose());
 	}
 
 	branch(name: string) {
@@ -82,21 +75,8 @@ export class GitLab implements Forge {
 
 	get listService() {
 		if (!this.authenticated) return;
-		const { api: gitLabApi, dispatch, getState } = this.params;
-		if (!this._listService) {
-			this._listService = new GitLabListingService(gitLabApi, dispatch, getState, this.scopeId);
-		}
-		return this._listService;
-	}
-
-	private createScopeId(
-		provider: string,
-		projectId: string,
-		owner: string,
-		repo: string,
-		tokenId: string,
-	): string {
-		return `${projectId}:${provider}:${owner}/${repo}:${tokenId}`;
+		const { api: gitLabApi, dispatch } = this.params;
+		return new GitLabListingService(gitLabApi, dispatch);
 	}
 
 	get issueService() {
@@ -123,12 +103,6 @@ export class GitLab implements Forge {
 
 	invalidate(tags: TagDescription<ReduxTag>[]) {
 		return this.params.api.util.invalidateTags(tags);
-	}
-
-	dispose(): void {
-		this._listService?.dispose();
-		this._listService = undefined;
-		this.params.api.util.resetApiState();
 	}
 }
 function injectEndpoints(api: GitLabApi) {

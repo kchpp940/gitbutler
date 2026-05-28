@@ -19,13 +19,12 @@ export class AzureDevOps implements Forge {
 	readonly name: ForgeName = "azure";
 	readonly authenticated: boolean;
 	readonly isLoading = false;
-	readonly scopeId: string;
 	private baseUrl: string;
 	private repo: RepoInfo;
 	private baseBranch: string;
 	private forkStr?: string;
 
-	constructor({ projectId, repo, baseBranch, forkStr, authenticated }: ForgeArguments) {
+	constructor({ repo, baseBranch, forkStr, authenticated }: ForgeArguments) {
 		// Use the protocol from repo if available, otherwise default to https
 		// For SSH remote URLs, always use HTTPS for browser compatibility
 		let protocol = repo.protocol?.endsWith(":")
@@ -42,7 +41,6 @@ export class AzureDevOps implements Forge {
 		this.baseBranch = baseBranch;
 		this.forkStr = forkStr;
 		this.authenticated = authenticated;
-		this.scopeId = `${projectId}:azure:${repo.owner}/${repo.name}:no-token`;
 	}
 
 	branch(name: string) {
@@ -82,6 +80,4 @@ export class AzureDevOps implements Forge {
 	invalidate(_tags: TagDescription<ReduxTag>[]) {
 		return undefined;
 	}
-
-	dispose(): void {}
 }

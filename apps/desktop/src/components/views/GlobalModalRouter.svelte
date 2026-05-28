@@ -5,6 +5,7 @@
 	import GeneralSettingsModalContent from "$components/settings/GeneralSettingsModalContent.svelte";
 	import ProjectSettingsModalContent from "$components/settings/ProjectSettingsModalContent.svelte";
 	import { type GlobalModalState, UI_STATE } from "$lib/state/uiState.svelte";
+	import { getCloseInterceptor, clearCloseInterceptor } from "$lib/settings/settingsModal.svelte";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Modal, TestId } from "@gitbutler/ui";
@@ -107,14 +108,17 @@
 	});
 
 	function handleModalClose() {
-		// If the login confirmation modal is closed without explicit user action (e.g., via ESC),
-		// we should reject the incoming user to maintain state consistency.
-		// We check if there's still an incoming user to avoid calling reject after accept/reject buttons.
 		if (stableModalData?.state.type === "login-confirmation") {
 			if (userService.incomingUserLogin) {
 				userService.rejectIncomingUser();
 			}
 		}
+		const interceptor = getCloseInterceptor();
+		if (interceptor) {
+			const allowClose = interceptor();
+			if (!allowClose) return;
+		}
+		clearCloseInterceptor();
 		uiState.global.modal.set(undefined);
 	}
 

@@ -32,6 +32,7 @@
 	} from "@gitbutler/ui";
 	import { onMount } from "svelte";
 	import type { User } from "$lib/user/user";
+	import { bindGeneralField } from "$lib/settings/settingsDraft";
 
 	const userService = inject(USER_SERVICE);
 	const settingsService = inject(SETTINGS_SERVICE);
@@ -50,6 +51,30 @@
 
 	const appSettings = settingsService.appSettings;
 
+	const uiState = inject(UI_STATE);
+
+	const defaultCodeEditor = bindGeneralField<CodeEditorSettings>(
+		"defaultCodeEditor",
+		() => uiState.global.defaultCodeEditor.current,
+		(v) => uiState.global.defaultCodeEditor.set(v),
+	);
+
+	const defaultTerminal = bindGeneralField<TerminalSettings>(
+		"defaultTerminal",
+		() => uiState.global.defaultTerminal.current,
+		(v) => uiState.global.defaultTerminal.set(v),
+	);
+
+	const autoUpdateChecks = bindGeneralField<boolean>(
+		"disableAutoUpdateChecks",
+		() => {
+			let v: any;
+			disableAutoChecks.subscribe((val: any) => (v = val))();
+			return !v;
+		},
+		(v) => disableAutoChecks.set(!v),
+	);
+
 	let saving = $state(false);
 	let newName = $state("");
 	let isDeleting = $state(false);
@@ -58,10 +83,6 @@
 	let userPicture = $state(userService.user?.picture);
 
 	let deleteConfirmationModal: ReturnType<typeof Modal> | undefined = $state();
-
-	const uiState = inject(UI_STATE);
-	const defaultCodeEditor = uiState.global.defaultCodeEditor;
-	const defaultTerminal = uiState.global.defaultTerminal;
 
 	const editorOptions: CodeEditorSettings[] = [
 		{ schemeIdentifer: "vscodium", displayName: "VSCodium" },
@@ -275,8 +296,8 @@
 		{#snippet actions()}
 			<Toggle
 				id="disable-auto-checks"
-				checked={!$disableAutoChecks}
-				onclick={() => ($disableAutoChecks = !$disableAutoChecks)}
+				checked={autoUpdateChecks.current}
+				onclick={() => autoUpdateChecks.set(!autoUpdateChecks.current)}
 			/>
 		{/snippet}
 	</CardGroup.Item>

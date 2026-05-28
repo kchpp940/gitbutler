@@ -19,7 +19,6 @@ import type { Reactive } from "@gitbutler/shared/storeUtils";
 import type { TagDescription } from "@reduxjs/toolkit/query";
 
 export type ForgeConfig = {
-	projectId?: string;
 	repo?: RepoInfo;
 	pushRepo?: RepoInfo;
 	baseBranch?: string;
@@ -60,7 +59,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			gitLabApi: GitLabApi;
 			posthog: PostHogWrapper;
 			dispatch: AppDispatch;
-			getState: () => any;
 		},
 	) {}
 
@@ -101,10 +99,8 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 		if (deepCompare(config, this._config)) {
 			return;
 		}
-		const oldForge = this._forge;
 		this._config = config;
 		const {
-			projectId,
 			repo,
 			pushRepo,
 			baseBranch,
@@ -116,10 +112,9 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			forgeOverride,
 		} = config;
 		this._githubError = githubError;
-		if (repo && baseBranch && projectId) {
+		if (repo && baseBranch) {
 			this._determinedForgeType = this.determineForgeType(repo, detectedForgeProvider);
 			this._forge = this.build({
-				projectId,
 				repo,
 				pushRepo,
 				baseBranch,
@@ -133,13 +128,9 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			this._determinedForgeType = "default";
 			this._forge = this.default;
 		}
-		if (oldForge !== this._forge) {
-			oldForge.dispose();
-		}
 	}
 
 	build({
-		projectId,
 		repo,
 		pushRepo,
 		baseBranch,
@@ -149,7 +140,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 		detectedForgeProvider,
 		forgeOverride,
 	}: {
-		projectId: string;
 		repo: RepoInfo;
 		pushRepo?: RepoInfo;
 		baseBranch: string;
@@ -167,7 +157,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			pushRepo && pushRepo.hash !== repo.hash ? `${pushRepo.owner}:${pushRepo.name}` : undefined;
 
 		const baseParams = {
-			projectId,
 			repo,
 			baseBranch,
 			forkStr,
@@ -175,11 +164,10 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 		};
 
 		if (forgeType === "github") {
-			const { gitHubClient, gitHubApi, posthog, backendApi, dispatch, getState } = this.params;
+			const { gitHubClient, gitHubApi, posthog, backendApi, dispatch } = this.params;
 			return new GitHub({
 				...baseParams,
 				dispatch,
-				getState,
 				api: gitHubApi,
 				backendApi,
 				client: gitHubClient,
@@ -189,7 +177,7 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			});
 		}
 		if (forgeType === "gitlab") {
-			const { gitLabClient, gitLabApi, posthog, dispatch, backendApi, getState } = this.params;
+			const { gitLabClient, gitLabApi, posthog, dispatch, backendApi } = this.params;
 			return new GitLab({
 				...baseParams,
 				api: gitLabApi,
@@ -198,7 +186,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 				posthog: posthog,
 				authenticated: !!gitlabAuthenticated,
 				dispatch,
-				getState,
 				isLoading: forgeIsLoading ?? false,
 			});
 		}

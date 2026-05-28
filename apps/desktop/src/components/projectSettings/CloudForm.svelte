@@ -7,14 +7,35 @@
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, CardGroup, Spacer, Toggle } from "@gitbutler/ui";
+	import { bindProjectField } from "$lib/settings/settingsDraft";
 
 	const { projectId }: { projectId: string } = $props();
 
 	const userService = inject(USER_SERVICE);
 	const { openGeneralSettings } = useSettingsModal();
 
-	const aiGenEnabled = $derived(projectAiGenEnabled(projectId));
-	const experimentalAiGenEnabled = $derived(projectAiExperimentalFeaturesEnabled(projectId));
+	const aiGenEnabledStore = projectAiGenEnabled(projectId);
+	const experimentalAiGenEnabledStore = projectAiExperimentalFeaturesEnabled(projectId);
+
+	const aiGenEnabledField = bindProjectField<boolean>(
+		"projectAiGenEnabled",
+		() => {
+			let v: any;
+			aiGenEnabledStore.subscribe((val: any) => (v = val))();
+			return v ?? true;
+		},
+		(v) => aiGenEnabledStore.set(v),
+	);
+
+	const experimentalAiGenEnabledField = bindProjectField<boolean>(
+		"projectAiExperimentalEnabled",
+		() => {
+			let v: any;
+			experimentalAiGenEnabledStore.subscribe((val: any) => (v = val))();
+			return v ?? false;
+		},
+		(v) => experimentalAiGenEnabledStore.set(v),
+	);
 </script>
 
 <SettingsSection>
@@ -43,16 +64,14 @@
 			{#snippet actions()}
 				<Toggle
 					id="aiGenEnabled"
-					checked={$aiGenEnabled}
-					onclick={() => {
-						$aiGenEnabled = !$aiGenEnabled;
-					}}
+					checked={aiGenEnabledField.current}
+					onclick={() => aiGenEnabledField.set(!aiGenEnabledField.current)}
 				/>
 			{/snippet}
 		</CardGroup.Item>
 	</CardGroup>
 
-	{#if $aiGenEnabled}
+	{#if aiGenEnabledField.current}
 		<CardGroup>
 			<CardGroup.Item labelFor="aiExperimental">
 				{#snippet title()}
@@ -65,10 +84,8 @@
 				{#snippet actions()}
 					<Toggle
 						id="aiExperimental"
-						checked={$experimentalAiGenEnabled}
-						onclick={() => {
-							$experimentalAiGenEnabled = !$experimentalAiGenEnabled;
-						}}
+						checked={experimentalAiGenEnabledField.current}
+						onclick={() => experimentalAiGenEnabledField.set(!experimentalAiGenEnabledField.current)}
 					/>
 				{/snippet}
 			</CardGroup.Item>

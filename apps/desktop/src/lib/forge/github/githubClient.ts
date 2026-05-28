@@ -1,6 +1,5 @@
 import { rateLimit } from "$lib/utils/ratelimit";
 import { InjectionToken } from "@gitbutler/core/context";
-import { hashCode } from "@gitbutler/ui/utils/string";
 import { Octokit } from "@octokit/rest";
 import type { ApiClient } from "$lib/forge/interface/apiClient";
 
@@ -52,15 +51,8 @@ export class GitHubClient implements ApiClient {
 	}
 
 	setRepo(info: { owner?: string; repo?: string }) {
-		if (info.owner === this._owner && info.repo === this._repo) {
-			return;
-		}
 		this._owner = info.owner;
 		this._repo = info.repo;
-		if (this._client) {
-			this._client = undefined;
-		}
-		this.subscriptions.every((cb) => cb());
 	}
 
 	get octokit(): Octokit {
@@ -76,15 +68,6 @@ export class GitHubClient implements ApiClient {
 
 	get repo(): string | undefined {
 		return this._repo;
-	}
-
-	get token(): string | undefined {
-		return this._token;
-	}
-
-	get tokenId(): string {
-		if (!this._token) return "no-token";
-		return `gh_${hashCode(this._token)}`;
 	}
 }
 

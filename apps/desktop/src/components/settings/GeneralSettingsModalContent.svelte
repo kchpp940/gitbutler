@@ -14,9 +14,16 @@
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { generalSettingsPages } from "$lib/settings/generalSettingsPages";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
-	import { inject } from "@gitbutler/core/context";
+	import { provide } from "@gitbutler/core/context";
 	import { Icon } from "@gitbutler/ui";
 	import type { GeneralSettingsModalState, GeneralSettingsPageId } from "$lib/state/uiState.svelte";
+	import {
+		GENERAL_SETTINGS_DRAFT,
+		GeneralSettingsDraftStore,
+	} from "$lib/settings/settingsDraft";
+	import { UI_STATE } from "$lib/state/uiState.svelte";
+	import { inject } from "@gitbutler/core/context";
+	import { setCloseInterceptor } from "$lib/settings/settingsModal.svelte";
 
 	type Props = {
 		data: GeneralSettingsModalState;
@@ -29,11 +36,46 @@
 	const settingsStore = settingsService.appSettings;
 	const ircEnabled = $derived($settingsStore?.featureFlags.irc ?? false);
 	const urlService = inject(URL_SERVICE);
+	const uiState = inject(UI_STATE);
+
+	const draft = new GeneralSettingsDraftStore();
+	provide(GENERAL_SETTINGS_DRAFT, draft);
+
+	$effect(() => {
+		draft.load();
+	});
+
+	function requestClose(): boolean {
+		if (draft.isDirty) {
+			if (!window.confirm("You have unsaved changes. Are you sure you want to close?")) {
+				return false;
+			}
+			draft.cancel();
+		}
+		return true;
+	}
+
+	$effect(() => {
+		const cleanup = setCloseInterceptor(requestClose);
+		return cleanup;
+	});
 
 	let currentSelectedId = $derived(data.selectedId || generalSettingsPages[0]!.id);
 
 	function selectPage(pageId: GeneralSettingsPageId) {
 		currentSelectedId = pageId;
+	}
+
+	async function handleSave() {
+		const success = await draft.save();
+		if (success) {
+			uiState.global.modal.set(undefined);
+		}
+	}
+
+	function handleCancel() {
+		draft.cancel();
+		uiState.global.modal.set(undefined);
 	}
 </script>
 
@@ -43,6 +85,10 @@
 	selectedId={currentSelectedId}
 	isAdmin={userService.user?.role === "admin"}
 	onSelectPage={selectPage}
+	isDirty={draft.isDirty}
+	isSaving={draft.saving}
+	onSave={handleSave}
+	onCancel={handleCancel}
 >
 	{#snippet content({ currentPage })}
 		{#if currentPage}

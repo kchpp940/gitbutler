@@ -157,7 +157,6 @@
 	// Forge factory configuration
 	$effect(() => {
 		forgeFactory.setConfig({
-			projectId,
 			repo: repoInfo,
 			pushRepo: forkInfo,
 			baseBranch: baseBranchName,
@@ -399,16 +398,12 @@
 		setActiveProjectOrRedirect(projectId);
 	});
 
-	// Clear all API state when project changes
+	// Clear backend API state when project changes
 	$effect(() => {
 		if (projectId) {
 			clientState.backendApi.util.resetApiState();
-			clientState.githubApi.util.resetApiState();
-			clientState.gitlabApi.util.resetApiState();
 		}
 	});
-
-
 
 	// =============================================================================
 	// IRC PROJECT CHANNEL

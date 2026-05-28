@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { Icon } from "@gitbutler/ui";
-	import type { AppTheme, UiState } from "$lib/state/uiState.svelte";
+	import type { AppTheme } from "$lib/state/uiState.svelte";
 
 	interface Props {
-		uiState: UiState;
+		theme: AppTheme;
+		onThemeChange: (theme: AppTheme) => void;
 	}
 
-	const { uiState }: Props = $props();
+	const { theme, onThemeChange }: Props = $props();
 
-	const currentTheme = $derived(uiState.global.theme.current ?? "system");
+	const currentTheme = $derived(theme ?? "system");
 
 	const themes: { name: string; value: AppTheme; preview: string }[] = [
 		{
@@ -30,19 +31,19 @@
 </script>
 
 <fieldset class="cards-group">
-	{#each themes as theme}
+	{#each themes as themeItem}
 		<label
 			class="theme-card"
-			class:selected={theme.value === currentTheme}
-			for="theme-{theme.value}"
+			class:selected={themeItem.value === currentTheme}
+			for="theme-{themeItem.value}"
 		>
 			<input
 				class="hidden-input"
 				type="radio"
-				id="theme-{theme.value}"
-				value={theme.value}
-				checked={theme.value === currentTheme}
-				onchange={() => uiState.global.theme.set(theme.value)}
+				id="theme-{themeItem.value}"
+				value={themeItem.value}
+				checked={themeItem.value === currentTheme}
+				onchange={() => onThemeChange(themeItem.value)}
 			/>
 			<div class="theme-card__preview">
 				<i class="theme-card__icon"

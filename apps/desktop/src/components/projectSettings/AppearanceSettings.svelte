@@ -13,29 +13,45 @@
 	} from "@gitbutler/ui";
 	import { LIGHT_THEMES, DARK_THEMES, setSyntaxThemes } from "@gitbutler/ui/utils/shikiHighlighter";
 	import type { ScrollbarVisilitySettings } from "@gitbutler/ui";
+	import {
+		bindGeneralField,
+		type DraftFieldBinding,
+	} from "$lib/settings/settingsDraft";
 
 	const uiState = inject(UI_STATE);
 
-	const pathFirst = uiState.global.pathFirst;
-	const allInOneDiff = uiState.global.allInOneDiff;
-	const highlightDiffs = uiState.global.highlightDiffs;
-	const syntaxThemeLight = uiState.global.syntaxThemeLight;
-	const syntaxThemeDark = uiState.global.syntaxThemeDark;
-	const tabSize = uiState.global.tabSize;
-	const diffLigatures = uiState.global.diffLigatures;
-	const wrapText = uiState.global.wrapText;
-	const diffFont = uiState.global.diffFont;
-	const strongContrast = uiState.global.strongContrast;
-	const colorBlindFriendly = uiState.global.colorBlindFriendly;
-	const inlineUnifiedDiffs = uiState.global.inlineUnifiedDiffs;
-	const svgAsImage = uiState.global.svgAsImage;
-	const scrollbarVisibilityState = uiState.global.scrollbarVisibilityState;
-	const defaultFileListMode = uiState.global.defaultFileListMode;
+	function bindUiField<K extends keyof typeof uiState.global>(
+		fieldName: string,
+		uiKey: K,
+	): DraftFieldBinding<(typeof uiState.global)[K]["current"]> {
+		return bindGeneralField(
+			fieldName,
+			() => uiState.global[uiKey].current,
+			(v) => uiState.global[uiKey].set(v),
+		);
+	}
 
-	// Sync persisted syntax theme settings to the shiki highlighter.
+	const pathFirst = bindUiField("pathFirst", "pathFirst");
+	const allInOneDiff = bindUiField("allInOneDiff", "allInOneDiff");
+	const highlightDiffs = bindUiField("highlightDiffs", "highlightDiffs");
+	const syntaxThemeLight = bindUiField("syntaxThemeLight", "syntaxThemeLight");
+	const syntaxThemeDark = bindUiField("syntaxThemeDark", "syntaxThemeDark");
+	const tabSize = bindUiField("tabSize", "tabSize");
+	const diffLigatures = bindUiField("diffLigatures", "diffLigatures");
+	const wrapText = bindUiField("wrapText", "wrapText");
+	const diffFont = bindUiField("diffFont", "diffFont");
+	const strongContrast = bindUiField("strongContrast", "strongContrast");
+	const colorBlindFriendly = bindUiField("colorBlindFriendly", "colorBlindFriendly");
+	const inlineUnifiedDiffs = bindUiField("inlineUnifiedDiffs", "inlineUnifiedDiffs");
+	const svgAsImage = bindUiField("svgAsImage", "svgAsImage");
+	const scrollbarVisibilityState = bindUiField("scrollbarVisibilityState", "scrollbarVisibilityState");
+	const defaultFileListMode = bindUiField("defaultFileListMode", "defaultFileListMode");
+	const theme = bindUiField("theme", "theme");
+
 	$effect(() => {
 		setSyntaxThemes(syntaxThemeLight.current, syntaxThemeDark.current);
 	});
+
 	const diff = `@@ -56,10 +56,10 @@
 			// Diff example
 			projectName={project.title}
@@ -54,16 +70,25 @@
 		const selectedScrollbarVisibility = formData.get(
 			"scrollBarVisibilityType",
 		) as ScrollbarVisilitySettings;
-
 		scrollbarVisibilityState.set(selectedScrollbarVisibility);
 	}
+
+	const hunkDiffProps = $derived({
+		tabSize: tabSize.current,
+		wrapText: wrapText.current,
+		diffFont: diffFont.current,
+		diffLigatures: diffLigatures.current,
+		strongContrast: strongContrast.current,
+		colorBlindFriendly: colorBlindFriendly.current,
+		inlineUnifiedDiffs: inlineUnifiedDiffs.current,
+	});
 </script>
 
 <CardGroup.Item standalone>
 	{#snippet title()}
 		Theme
 	{/snippet}
-	<ThemeSelector {uiState} />
+	<ThemeSelector theme={theme.current} onThemeChange={(v) => theme.set(v)} />
 </CardGroup.Item>
 
 <CardGroup.Item alignment="center" standalone>
@@ -161,15 +186,7 @@
 		<HunkDiff
 			filePath="test.tsx"
 			hunkStr={diff}
-			{...uiState.pick(
-				"tabSize",
-				"wrapText",
-				"diffFont",
-				"diffLigatures",
-				"strongContrast",
-				"colorBlindFriendly",
-				"inlineUnifiedDiffs",
-			)}
+			{...hunkDiffProps}
 		/>
 	</CardGroup.Item>
 

@@ -2,12 +2,28 @@
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Link, TestId, Toggle } from "@gitbutler/ui";
+	import { bindGeneralField } from "$lib/settings/settingsDraft";
 
 	const settingsService = inject(SETTINGS_SERVICE);
 	const appSettings = $derived(settingsService.appSettings);
-	const errorReportingEnabled = $derived($appSettings?.telemetry.appErrorReportingEnabled);
-	const metricsEnabled = $derived($appSettings?.telemetry.appMetricsEnabled);
-	const nonAnonMetricsEnabled = $derived($appSettings?.telemetry.appNonAnonMetricsEnabled);
+
+	const errorReporting = bindGeneralField<boolean>(
+		"telemetryEnabled",
+		() => $appSettings?.telemetry.appErrorReportingEnabled ?? false,
+		(v) => settingsService.updateTelemetry({ appErrorReportingEnabled: v }),
+	);
+
+	const metrics = bindGeneralField<boolean>(
+		"telemetryMetricsEnabled",
+		() => $appSettings?.telemetry.appMetricsEnabled ?? false,
+		(v) => settingsService.updateTelemetry({ appMetricsEnabled: v }),
+	);
+
+	const nonAnonMetrics = bindGeneralField<boolean>(
+		"telemetryNonAnonMetricsEnabled",
+		() => $appSettings?.telemetry.appNonAnonMetricsEnabled ?? false,
+		(v) => settingsService.updateTelemetry({ appNonAnonMetricsEnabled: v }),
+	);
 </script>
 
 <div class="analytics-settings__content">
@@ -39,11 +55,8 @@
 			<Toggle
 				id="errorReportingToggle"
 				testId={TestId.OnboardingPageAnalyticsSettingsErrorReportingToggle}
-				checked={errorReportingEnabled}
-				onclick={() =>
-					settingsService.updateTelemetry({
-						appErrorReportingEnabled: !errorReportingEnabled,
-					})}
+				checked={errorReporting.current}
+				onclick={() => errorReporting.set(!errorReporting.current)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -59,11 +72,8 @@
 			<Toggle
 				id="metricsEnabledToggle"
 				testId={TestId.OnboardingPageAnalyticsSettingsTelemetryToggle}
-				checked={metricsEnabled}
-				onclick={() =>
-					settingsService.updateTelemetry({
-						appMetricsEnabled: !metricsEnabled,
-					})}
+				checked={metrics.current}
+				onclick={() => metrics.set(!metrics.current)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -79,11 +89,8 @@
 			<Toggle
 				id="nonAnonMetricsEnabledToggle"
 				testId={TestId.OnboardingPageAnalyticsSettingsNonAnonymousToggle}
-				checked={nonAnonMetricsEnabled}
-				onclick={() =>
-					settingsService.updateTelemetry({
-						appNonAnonMetricsEnabled: !nonAnonMetricsEnabled,
-					})}
+				checked={nonAnonMetrics.current}
+				onclick={() => nonAnonMetrics.set(!nonAnonMetrics.current)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
