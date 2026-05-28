@@ -35,31 +35,4 @@ The database was changed by a more recent version of GitButler - cannot safely o
 	DefaultTerminalNotFound: `
 Your default terminal was not found. Please select your preferred terminal in Settings > General.
 	`,
-	ProjectDatabaseCorrupted: `
-The project database was corrupted. It has been backed up and a new database has been created.
-
-Your Git worktree is untouched - you may need to re-configure your virtual branches.
-	`,
-	ProjectFilterWarning: `
-This repository uses Git filters (like Git LFS) that may not work correctly with GitButler.
-
-Filters will silently not be applied during workspace operations. If you use Git LFS, you can restore files after operations with:
-    git lfs pull --include="*"
-	`,
-	ProjectPermissionDenied: `
-GitButler doesn't have sufficient permissions to access this repository.
-
-Please check the file and directory permissions for the project path and ensure the current user has read/write access.
-	`,
-	ProjectAlreadyOpenInAnotherWindow: `
-This project is already open in another window.
-
-Opening the same project in multiple windows can cause unexpected behavior.
-	`,
-	ProjectInvalidGitRepository: `
-The selected path is not a valid Git repository.
-
-Please select a directory that contains a .git folder or initialize a Git repository first with:
-    git init
-	`,
 };

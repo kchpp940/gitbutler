@@ -6,11 +6,7 @@
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
-	import {
-		handleAddProjectOutcome,
-		handleProjectCommandError,
-	} from "$lib/project/project";
-	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
+	import { handleAddProjectOutcome } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { isWorkspacePath, projectPath } from "$lib/routes/routes.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
@@ -189,39 +185,8 @@
 										newProjectLoading = false;
 										return;
 									}
-									if (outcome.type === "added" || outcome.type === "alreadyExists") {
-										handleAddProjectOutcome(outcome, (project) =>
-											goto(projectPath(project.id)),
-										);
-									} else {
-										PROJECT_ERROR_STORE.addOutcomeError(outcome, {
-											retry: () =>
-												projectsService
-													.addProject()
-													.then((o) => {
-														if (o && (o.type === "added" || o.type === "alreadyExists")) {
-															handleAddProjectOutcome(o, (p) =>
-																goto(projectPath(p.id)),
-															);
-														}
-													})
-													.catch((e) => handleProjectCommandError(e)),
-										});
-									}
-								} catch (e: unknown) {
-									handleProjectCommandError(e, {
-										retry: () =>
-											projectsService
-												.addProject()
-												.then((o) => {
-													if (o && (o.type === "added" || o.type === "alreadyExists")) {
-														handleAddProjectOutcome(o, (p) =>
-															goto(projectPath(p.id)),
-														);
-													}
-												})
-												.catch((err) => handleProjectCommandError(err)),
-									});
+
+									handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
 								} finally {
 									newProjectLoading = false;
 								}

@@ -5,12 +5,7 @@
 	import { parseError } from "$lib/error/parser";
 	import { GIT_SERVICE } from "$lib/git/gitService";
 	import { parseRemoteUrl } from "$lib/git/gitUrl";
-	import {
-		handleAddProjectOutcome,
-		handleProjectCommandError,
-		extractErrorCode,
-	} from "$lib/project/project";
-	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
+	import { handleAddProjectOutcome } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { projectPath } from "$lib/routes/routes.svelte";
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
@@ -96,30 +91,13 @@
 			}
 
 			handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
-		} catch (e: unknown) {
+		} catch (e) {
 			Sentry.captureException(e);
+			const errorMessage = getErrorMessage(e);
 			posthog.captureOnboarding(OnboardingEvent.ClonedProjectFailed, e);
-
-			const code = extractErrorCode(e);
-			if (code && (code.startsWith("Project") || code === "RepoOwnership")) {
-				handleProjectCommandError(e, {
-					retry: () =>
-						projectsService
-							.addProject(targetDir)
-							.then((o) => {
-								if (o && (o.type === "added" || o.type === "alreadyExists")) {
-									handleAddProjectOutcome(o, (p) => goto(projectPath(p.id)));
-								}
-							})
-							.catch((err) => handleProjectCommandError(err)),
-					path: targetDir,
-				});
-			} else {
-				const errorMessage = getErrorMessage(e);
-				errors.push({
-					label: errorMessage,
-				});
-			}
+			errors.push({
+				label: errorMessage,
+			});
 		} finally {
 			loading = false;
 		}

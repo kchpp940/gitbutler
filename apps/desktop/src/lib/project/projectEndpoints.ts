@@ -3,36 +3,10 @@ import type { AddProjectOutcome, Project } from "$lib/project/project";
 import type { BackendEndpointBuilder } from "$lib/state/backendApi";
 import type { TreeChanges } from "@gitbutler/but-sdk";
 
-export type ProjectActivationIssue =
-	| {
-			code: "DatabaseCorrupted";
-			details: {
-				db_path: string;
-				backup_path: string;
-				error: string;
-			};
-	  }
-	| {
-			code: "FilterWarning";
-			details: {
-				filters: string[];
-				affected_files: string[];
-				has_lfs: boolean;
-			};
-	  }
-	| {
-			code: "AlreadyOpenInAnotherWindow";
-	  }
-	| {
-			code: "PermissionDenied";
-			details: {
-				path: string;
-			};
-	  };
-
 export type ProjectInfo = {
 	is_exclusive: boolean;
-	issues: ProjectActivationIssue[];
+	db_error?: string;
+	headsup?: string;
 };
 
 export type ServerCapabilities = {

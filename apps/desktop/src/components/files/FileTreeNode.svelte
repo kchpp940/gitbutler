@@ -2,23 +2,21 @@
 	import FileTreeFolder from "$components/files/FileTreeFolder.svelte";
 	import Self from "$components/files/FileTreeNode.svelte";
 	import { getAllChanges } from "$lib/files/filetreeV3";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
-	import { inject } from "@gitbutler/core/context";
+	import {
+		getFileListContext,
+	} from "$lib/selection/fileListController.svelte";
 	import { TestId } from "@gitbutler/ui";
 	import type { TreeNode } from "$lib/files/filetreeV3";
-	import type { SelectionId } from "$lib/selection/key";
 	import type { TreeChange } from "@gitbutler/but-sdk";
 	import type { Snippet } from "svelte";
 
 	type Props = {
 		projectId: string;
 		stackId?: string;
-		selectionId: SelectionId;
 		node: TreeNode;
 		isRoot?: boolean;
 		showCheckboxes?: boolean;
 		draggableFiles?: boolean;
-		changes: TreeChange[];
 		depth?: number;
 		initiallyExpanded?: boolean;
 		fileTemplate: Snippet<[TreeChange, number, number]>;
@@ -28,18 +26,16 @@
 	let {
 		projectId,
 		stackId,
-		selectionId,
 		node,
 		isRoot = false,
 		showCheckboxes,
 		draggableFiles,
-		changes,
 		depth = 0,
 		fileTemplate,
 		active,
 	}: Props = $props();
 
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const controller = getFileListContext();
 
 	// Local state to track whether the folder is expanded
 	let isExpanded = $state<boolean>(true);
@@ -58,17 +54,15 @@
 		const folderChanges = getAllChanges(node);
 		if (folderChanges.length === 0) return;
 
-		const indexMap = new Map(changes.map((c, i) => [c.path, i]));
-
 		if (!addToSelection) {
-			idSelection.clear(selectionId);
+			controller.selection.clear(controller.selectionId);
 		}
 
 		const last = folderChanges.at(-1)!;
-		const lastIndex = indexMap.get(last.path) ?? 0;
-		idSelection.addMany(
+		const lastIndex = controller.getIndexByPath(last.path);
+		controller.selection.addMany(
 			folderChanges.map((c) => c.path),
-			selectionId,
+			controller.selectionId,
 			{ path: last.path, index: lastIndex },
 		);
 	}
@@ -95,17 +89,19 @@
 		if ((e.key === "ArrowDown" || e.key === "j") && !e.shiftKey) {
 			// FocusManager will focus the first file in this folder next.
 			const firstFile = folderChanges[0]!;
-			const idx = changes.findIndex((c) => c.path === firstFile.path);
+			const idx = controller.getIndexByPath(firstFile.path);
 			if (idx !== -1) {
-				idSelection.set(firstFile.path, selectionId, idx);
+				controller.selection.set(firstFile.path, controller.selectionId, idx);
 			}
 		} else if ((e.key === "ArrowUp" || e.key === "k") && !e.shiftKey) {
 			// FocusManager will focus the item before this folder next.
 			const firstFile = folderChanges[0]!;
-			const idx = changes.findIndex((c) => c.path === firstFile.path);
+			const idx = controller.getIndexByPath(firstFile.path);
 			if (idx > 0) {
-				const prevFile = changes[idx - 1]!;
-				idSelection.set(prevFile.path, selectionId, idx - 1);
+				const prevChange = controller.changes[idx - 1];
+				if (prevChange) {
+					controller.selection.set(prevChange.path, controller.selectionId, idx - 1);
+				}
 			}
 		}
 		return false; // Let FocusManager handle the actual focus movement
@@ -118,23 +114,22 @@
 		<Self
 			{projectId}
 			{stackId}
-			{selectionId}
 			{depth}
 			node={childNode}
 			{showCheckboxes}
 			{draggableFiles}
-			{changes}
 			{fileTemplate}
 			{active}
 		/>
 	{/each}
 {:else if node.kind === "file"}
-	{@render fileTemplate(node.change, node.index, depth)}
+	{@const previewIdx = controller.getPreviewIndexByPath(node.change.path)}
+	{@render fileTemplate(node.change, previewIdx !== -1 ? previewIdx : node.index, depth)}
 {:else}
 	<FileTreeFolder
 		{projectId}
 		{stackId}
-		{selectionId}
+		selectionId={controller.selectionId}
 		testId={TestId.FileListTreeFolder}
 		{depth}
 		{isExpanded}
@@ -160,12 +155,10 @@
 			<Self
 				{projectId}
 				{stackId}
-				{selectionId}
 				depth={depth + 1}
 				node={childNode}
 				{showCheckboxes}
 				{draggableFiles}
-				{changes}
 				{fileTemplate}
 				{active}
 			/>

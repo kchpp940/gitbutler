@@ -37,82 +37,13 @@ fn normalize_project_repo(
     Ok(ResolvedProjectRepo { repo, worktree_dir })
 }
 
-fn is_permission_error(err: &gix::open::Error) -> bool {
-    use gix::open::Error;
-    match err {
-        Error::Init(err) => is_gix_io_permission_error(err),
-        Error::FindRepository(_) => false,
-        Error::FromPath(err) => is_gix_io_permission_error(err),
-    }
-}
-
-fn is_gix_io_permission_error<T>(err: &T) -> bool
-where
-    T: std::error::Error + 'static,
-{
-    let mut source_opt = std::error::Error::source(err);
-    while let Some(source) = source_opt {
-        if let Some(io_err) = source.downcast_ref::<std::io::Error>() {
-            if io_err.kind() == std::io::ErrorKind::PermissionDenied {
-                return true;
-            }
-        }
-        source_opt = source.source();
-    }
-    false
-}
-
-fn map_git_open_error_to_outcome(err: gix::open::Error, path: &Path) -> AddProjectOutcome {
-    if is_permission_error(&err) {
-        AddProjectOutcome::PermissionDenied(path.display().to_string())
-    } else {
-        AddProjectOutcome::NotAGitRepository(err.to_string())
-    }
-}
-
-fn is_discover_permission_error(err: &gix::discover::Error) -> bool {
-    use gix::discover::Error;
-    match err {
-        Error::NotARepository { err, .. } => is_gix_io_permission_error(err),
-        Error::Io(err) => err.kind() == std::io::ErrorKind::PermissionDenied,
-        Error::ReadFile(err) => err.kind() == std::io::ErrorKind::PermissionDenied,
-        Error::InvalidOwnership(_) => false,
-        Error::Permissions(_) => true,
-    }
-}
-
-fn map_git_discover_error_to_outcome(err: gix::discover::Error, path: &Path) -> AddProjectOutcome {
-    if is_discover_permission_error(&err) {
-        AddProjectOutcome::PermissionDenied(path.display().to_string())
-    } else {
-        AddProjectOutcome::NotAGitRepository(err.to_string())
-    }
-}
-
-fn is_realpath_permission_error(err: &gix::path::realpath::Error) -> bool {
-    use gix::path::realpath::Error;
-    match err {
-        Error::Io(io_err) => io_err.kind() == std::io::ErrorKind::PermissionDenied,
-        Error::MaxSymlinksExceeded { .. } => false,
-    }
-}
-
-fn check_repo_ownership(repo: &gix::Repository) -> Option<String> {
-    match repo.config().map(|c| c.boolean("safe.directory").ok()) {
-        Some(Some(false)) | None => {}
-        _ => return None,
-    }
-    let git_dir = repo.git_dir().display().to_string();
-    Some(git_dir)
-}
-
 #[expect(clippy::result_large_err)]
 fn resolve_project_repo_exact(
     path: &Path,
 ) -> std::result::Result<ResolvedProjectRepo, AddProjectOutcome> {
     let repo = match gix::open_opts(path, gix::open::Options::isolated()) {
         Ok(repo) => repo,
-        Err(err) => return Err(map_git_open_error_to_outcome(err, path)),
+        Err(err) => return Err(AddProjectOutcome::NotAGitRepository(err.to_string())),
     };
 
     normalize_project_repo(repo)
@@ -124,7 +55,7 @@ fn resolve_project_repo_by_discovery(
 ) -> std::result::Result<ResolvedProjectRepo, AddProjectOutcome> {
     let repo = match gix::discover(path) {
         Ok(repo) => repo,
-        Err(err) => return Err(map_git_discover_error_to_outcome(err, path)),
+        Err(err) => return Err(AddProjectOutcome::NotAGitRepository(err.to_string())),
     };
 
     normalize_project_repo(repo)
@@ -238,19 +169,7 @@ impl Controller {
             .projects_storage
             .list()
             .context("failed to list projects from storage")?;
-        let resolved_path = match gix::path::realpath(worktree_dir) {
-            Ok(p) => p,
-            Err(err) => {
-                if is_realpath_permission_error(&err) {
-                    return Ok(AddProjectOutcome::PermissionDenied(
-                        worktree_dir.display().to_string(),
-                    ));
-                }
-                return Err(err)
-                    .context("failed to resolve project path")
-                    .context(but_error::Code::ProjectInvalidGitRepository);
-            }
-        };
+        let resolved_path = gix::path::realpath(worktree_dir)?;
         if !resolved_path.is_dir() {
             if let Some(existing_project) =
                 find_existing_project_containing_path(&all_projects, &resolved_path)?
@@ -263,10 +182,6 @@ impl Controller {
             Ok(repo) => repo,
             Err(outcome) => return Ok(outcome),
         };
-
-        if let Some(ownership_msg) = check_repo_ownership(&resolved_repo.repo) {
-            return Ok(AddProjectOutcome::RepoOwnership(ownership_msg));
-        }
 
         if let Some(existing_project) =
             find_existing_project_by_git_dir(&all_projects, resolved_repo.repo.git_dir())?
@@ -285,28 +200,11 @@ impl Controller {
         if !worktree_dir.is_dir() {
             return Ok(AddProjectOutcome::NotADirectory);
         }
-        let resolved_path = match gix::path::realpath(worktree_dir) {
-            Ok(p) => p,
-            Err(err) => {
-                if is_realpath_permission_error(&err) {
-                    return Ok(AddProjectOutcome::PermissionDenied(
-                        worktree_dir.display().to_string(),
-                    ));
-                }
-                return Err(err)
-                    .context("failed to resolve project path")
-                    .context(but_error::Code::ProjectInvalidGitRepository);
-            }
-        };
+        let resolved_path = gix::path::realpath(worktree_dir)?;
         let resolved_repo = match resolve_project_repo_exact(&resolved_path) {
             Ok(repo) => repo,
             Err(outcome) => return Ok(outcome),
         };
-
-        if let Some(ownership_msg) = check_repo_ownership(&resolved_repo.repo) {
-            return Ok(AddProjectOutcome::RepoOwnership(ownership_msg));
-        }
-
         let all_projects = self
             .projects_storage
             .list()

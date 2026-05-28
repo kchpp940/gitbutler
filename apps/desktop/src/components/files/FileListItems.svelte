@@ -14,6 +14,7 @@
 	import FileTreeNode from "$components/files/FileTreeNode.svelte";
 	import LazyList from "$components/shared/LazyList.svelte";
 	import { DEPENDENCY_SERVICE } from "$lib/dependencies/dependencyService.svelte";
+	import type { FileGroup } from "$lib/files/fileGrouping";
 	import { abbreviateFolders, changesToFileTree } from "$lib/files/filetreeV3";
 	import { isExecutableStatus } from "$lib/hunks/change";
 	import { getLockedCommitIds, getLockedTargets, isFileLocked } from "$lib/hunks/dependencies";
@@ -22,6 +23,7 @@
 		type FileListKeyHandler,
 	} from "$lib/selection/fileListController.svelte";
 	import { inject } from "@gitbutler/core/context";
+	import { Icon } from "@gitbutler/ui";
 	import { FOCUS_MANAGER } from "@gitbutler/ui/focus/focusManager";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
 	import type { ConflictEntriesObj } from "$lib/files/conflicts";
@@ -65,7 +67,6 @@
 	const dependencyService = inject(DEPENDENCY_SERVICE);
 	const focusManager = inject(FOCUS_MANAGER);
 
-	/** Invert nick→paths map to path→nicks for per-file lookup. */
 	const ircWorkingUsersByPath = $derived.by(() => {
 		if (!ircWorkingFiles) return undefined;
 		const map = new Map<string, string[]>();
@@ -89,7 +90,8 @@
 	const fileDependencies = $derived(fileDependenciesQuery?.result.data || []);
 </script>
 
-{#snippet fileTemplate(change: TreeChange, idx: number, depth: number = 0, isLast: boolean = false)}
+{#snippet fileTemplate(change: TreeChange, previewIdx: number, depth: number = 0, isLast: boolean = false)}
+	{@const visibleIdx = controller.getVisibleIndexByPath(change.path)}
 	{@const isExecutable = isExecutableStatus(change.status)}
 	{@const selected = controller.isSelected(change.path)}
 	{@const locked = showLockedIndicator && isFileLocked(change.path, fileDependencies)}
@@ -114,38 +116,30 @@
 		{isLast}
 		notched={controller.hasSelectionInList &&
 			visibleRange !== undefined &&
-			idx >= visibleRange.start &&
-			idx < visibleRange.end}
+			visibleIdx >= visibleRange.start &&
+			visibleIdx < visibleRange.end}
 		{draggable}
 		executable={isExecutable}
 		showCheckbox={showCheckboxes}
 		ircWorkingUsers={ircWorkingUsersByPath?.get(change.path)}
 		focusableOpts={{
 			onKeydown: (e) => {
-				// 1. Activation keys (Enter/Space/l)
-				if (controller.handleActivation(change, idx, e)) {
-					onselect?.(change, idx);
+				if (controller.handleActivation(change, visibleIdx, e)) {
+					onselect?.(change, previewIdx);
 					return true;
 				}
-				// 2. Extra handlers (e.g. AI shortcuts)
 				if (extraKeyHandlers) {
 					for (const handler of extraKeyHandlers) {
-						if (handler(change, idx, e)) return true;
+						if (handler(change, visibleIdx, e)) return true;
 					}
 				}
-				// 3. Arrow/vim navigation.
-				// In tree mode with shift held: use flat-array multi-select (handleNavigation)
-				// so shift+arrows extend the selection across files, skipping folders.
-				// In tree mode without shift: let FM navigate naturally through folder
-				// headers too — file selection happens via onActive below.
-				// In list mode: always intercept and drive selection ourselves.
 				if (mode === "tree") {
 					if (e.shiftKey) {
 						const navigatedIndex = controller.handleNavigation(e);
 						if (navigatedIndex !== undefined) {
 							const navigatedChange = controller.changes[navigatedIndex];
 							if (navigatedChange) {
-								onselect?.(navigatedChange, navigatedIndex);
+								onselect?.(navigatedChange, controller.getPreviewIndexByPath(navigatedChange.path));
 							}
 							return true;
 						}
@@ -153,26 +147,20 @@
 					return false;
 				}
 				const navigatedIndex = controller.handleNavigation(e);
-				if (navigatedIndex !== undefined && navigatedIndex !== idx) {
+				if (navigatedIndex !== undefined && navigatedIndex !== visibleIdx) {
 					const navigatedChange = controller.changes[navigatedIndex];
 					if (navigatedChange) {
-						onselect?.(navigatedChange, navigatedIndex);
+						onselect?.(navigatedChange, controller.getPreviewIndexByPath(navigatedChange.path));
 					}
 					return true;
 				}
 			},
-			// In tree mode, FM fires onActive when plain arrow keys land on a file
-			// item. We use this to drive single-file selection so folders are
-			// navigable. Shift+arrows are handled in onKeydown above instead.
-			// Guard: skip when controller.isKeyboardSelecting is true — that means
-			// shift-range-select called focusByElement to move the ring, and we
-			// must not overwrite the multi-select with a single-file set().
 			onActive:
 				mode === "tree"
 					? (active) => {
 							if (active && focusManager.isKeyboardNavigation && !controller.isKeyboardSelecting) {
-								controller.selectSingle(change, idx);
-								onselect?.(change, idx);
+								controller.selectSingle(change, visibleIdx);
+								onselect?.(change, previewIdx);
 							}
 						}
 					: undefined,
@@ -180,13 +168,30 @@
 		}}
 		onclick={(e) => {
 			e.stopPropagation();
-			controller.select(e, change, idx);
+			controller.select(e, change, visibleIdx);
 			if (controller.isSelected(change.path)) {
-				onselect?.(change, idx);
+				onselect?.(change, previewIdx);
 			}
 		}}
 		{conflictEntries}
 	/>
+{/snippet}
+
+{#snippet groupHeader(group: FileGroup)}
+	<button
+		type="button"
+		class="file-group-header"
+		onclick={() => controller.toggleGroup(group.id)}
+		aria-expanded={controller.isGroupExpanded(group.id)}
+	>
+		<Icon
+			name="chevron-right"
+			size={14}
+			class:rotated={controller.isGroupExpanded(group.id)}
+		/>
+		<span class="file-group-header__label">{group.label}</span>
+		<span class="file-group-header__count">{group.changes.length}</span>
+	</button>
 {/snippet}
 
 <div
@@ -198,34 +203,47 @@
 	}}
 >
 	{#if controller.changes.length > 0}
-		{#if mode === "tree"}
+		{#if controller.groupByMode !== "none" && controller.groups.length > 1}
+			{#each controller.groups as group (group.id)}
+				{@render groupHeader(group)}
+				{#if controller.isGroupExpanded(group.id)}
+					{#if mode === "tree"}
+						{@const node = abbreviateFolders(changesToFileTree(group.changes))}
+						<FileTreeNode
+							isRoot
+							{projectId}
+							{stackId}
+							{node}
+							{showCheckboxes}
+							draggableFiles={draggable}
+							{fileTemplate}
+							active={controller.active}
+						/>
+					{:else}
+						{#each group.changes as change (change.path)}
+							{@const previewIdx = controller.getPreviewIndexByPath(change.path)}
+							{@const isLast = change === group.changes.at(-1)}
+							{@const _selected = controller.isSelected(change.path)}
+							{@render fileTemplate(change, previewIdx, 1, isLast)}
+						{/each}
+					{/if}
+				{/if}
+			{/each}
+		{:else if mode === "tree"}
 			{@const node = abbreviateFolders(changesToFileTree(controller.changes))}
 			<FileTreeNode
 				isRoot
 				{projectId}
-				selectionId={controller.selectionId}
 				{stackId}
 				{node}
 				{showCheckboxes}
 				draggableFiles={draggable}
-				changes={controller.changes}
 				{fileTemplate}
 				active={controller.active}
 			/>
 		{:else}
 			<LazyList items={controller.changes} chunkSize={100}>
 				{#snippet template(change, context)}
-					<!--
-						There is a bug here related to the reactivity of `idSelection.has`,
-						affecting somehow the first item in the list of files.. but only where
-						used for the "assigned files" of the workspace.
-
-						This unused variable is a workaround, while present the reactivity
-						works as expected.
-
-						TODO: Bisect this issue, it was introduced between nightly version
-						0.5.1705 and 0.5.1783.
-						-->
 					{@const _selected = controller.isSelected(change.path)}
 					{@render fileTemplate(change, context.index, 0, context.last)}
 				{/snippet}
@@ -238,5 +256,44 @@
 	.file-list {
 		display: flex;
 		flex-direction: column;
+	}
+
+	.file-group-header {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		width: 100%;
+		padding: 6px 10px;
+		border: none;
+		background: transparent;
+		color: var(--text-3);
+		font-size: 12px;
+		font-weight: 500;
+		text-align: left;
+		cursor: pointer;
+		transition: color var(--transition-fast);
+
+		&:hover {
+			color: var(--text-2);
+			background-color: var(--bg-2);
+		}
+
+		.rotated {
+			transform: rotate(90deg);
+		}
+
+		&__label {
+			flex: 1;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
+		&__count {
+			padding: 2px 6px;
+			border-radius: 10px;
+			background-color: var(--bg-3);
+			color: var(--text-3);
+			font-size: 11px;
+		}
 	}
 </style>
