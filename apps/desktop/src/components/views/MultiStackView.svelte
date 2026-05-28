@@ -119,30 +119,11 @@
 	// Enable panning when a stack is being dragged.
 	let draggingStack = $state(false);
 
-	// Track the IDs order from the last successful backend update
-	// to prevent race conditions where stale data overwrites the UI
-	let lastSyncedStackIds = $state<string[]>([]);
-
-	function stacksHaveSameOrder(a: Stack[], b: Stack[]): boolean {
-		const aIds = a.map((s) => s.id).filter(isDefined);
-		const bIds = b.map((s) => s.id).filter(isDefined);
-		if (aIds.length !== bIds.length) return false;
-		return aIds.every((id, i) => id === bIds[i]);
-	}
-
-	// Only update mutableStacks from props when:
-	// 1. Not currently dragging
-	// 2. The backend order has actually changed from what we last synced
+	// This is a bit of anti-pattern, and reordering should be better
+	// encapsulated such that we don't need this somewhat messy code.
 	$effect(() => {
-		if (stacks && !draggingStack) {
-			const newStackIds = stacks.map((s) => s.id).filter(isDefined);
-			const orderChanged = !stacksHaveSameOrder(stacks, mutableStacks);
-			const backendIsNewer =
-				lastSyncedStackIds.length === 0 || !stacksHaveSameOrder(stacks, lastSyncedStackIds as any);
-
-			if (orderChanged && backendIsNewer) {
-				mutableStacks = stacks;
-			}
+		if (stacks) {
+			mutableStacks = stacks;
 		}
 	});
 
@@ -211,18 +192,13 @@
 	bind:clientWidth={lanesScrollableWidth}
 	bind:clientHeight={lanesScrollableHeight}
 	class:multi={stacks.length < SHOW_PAGINATION_THRESHOLD}
-	ondrop={async () => {
-		const orderedStackIds = mutableStacks.map((b) => b.id).filter(isDefined);
-
-		try {
-			await stackService.updateStackOrder({
-				projectId,
-				orderedStackIds,
-			});
-			lastSyncedStackIds = orderedStackIds;
-		} catch {
-			mutableStacks = stacks;
-		}
+	ondrop={() => {
+		stackService.updateStackOrder({
+			projectId,
+			stacks: mutableStacks
+				.map((b, i) => (b.id ? { id: b.id, order: i } : undefined))
+				.filter(isDefined),
+		});
 	}}
 	use:resizeObserver={(data) => {
 		// An experiment in prevent content shift. Currently this mechanism

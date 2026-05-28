@@ -21,13 +21,17 @@ export class GitHub implements Forge {
 	readonly name: ForgeName = "github";
 	readonly authenticated: boolean;
 	readonly isLoading: boolean;
+	readonly scopeId: string;
 	private baseUrl: string;
 
 	private api: ReturnType<typeof injectEndpoints>;
+	private _listService?: GitHubListingService;
+	private _checks?: GitHubChecksMonitor;
 
 	constructor(
 		private params: ForgeArguments & {
 			dispatch: AppDispatch;
+			getState: () => any;
 			posthog?: PostHogWrapper;
 			client: GitHubClient;
 			api: GitHubApi;
@@ -35,10 +39,11 @@ export class GitHub implements Forge {
 			isLoading: boolean;
 		},
 	) {
-		const { client, api, authenticated, repo, isLoading } = params;
+		const { client, api, authenticated, repo, isLoading, projectId } = params;
 		const { owner, name } = repo;
 		this.authenticated = authenticated;
 		this.isLoading = isLoading;
+		this.scopeId = this.createScopeId("github", projectId, owner, name, client.tokenId);
 
 		// Use the protocol from repo if available, otherwise default to https
 		// For SSH remote URLs, always use HTTPS for browser compatibility
@@ -56,13 +61,16 @@ export class GitHub implements Forge {
 		this.api = injectEndpoints(api);
 
 		// Reset the API when the token changes.
-		client.onReset(() => api.util.resetApiState());
+		client.onReset(() => this.dispose());
 	}
 
 	get listService() {
 		if (!this.authenticated) return;
-		const { api: gitHubApi, backendApi, dispatch } = this.params;
-		return new GitHubListingService(gitHubApi, backendApi, dispatch);
+		const { api: gitHubApi, backendApi, dispatch, getState } = this.params;
+		if (!this._listService) {
+			this._listService = new GitHubListingService(gitHubApi, backendApi, dispatch, getState, this.scopeId);
+		}
+		return this._listService;
 	}
 
 	get prService() {
@@ -83,7 +91,30 @@ export class GitHub implements Forge {
 
 	get checks() {
 		if (!this.authenticated) return;
-		return new GitHubChecksMonitor(this.params.api);
+		const { api: gitHubApi, dispatch, getState } = this.params;
+		if (!this._checks) {
+			this._checks = new GitHubChecksMonitor(gitHubApi, dispatch, getState, this.scopeId);
+		}
+		return this._checks;
+	}
+
+	private createScopeId(
+		provider: string,
+		projectId: string,
+		owner: string,
+		repo: string,
+		tokenId: string,
+	): string {
+		return `${projectId}:${provider}:${owner}/${repo}:${tokenId}`;
+	}
+
+	dispose(): void {
+		this._listService?.dispose();
+		this._listService = undefined;
+		this._checks?.dispose();
+		this._checks = undefined;
+		this.params.api.util.resetApiState();
+		this.params.backendApi.util.resetApiState();
 	}
 
 	get user() {

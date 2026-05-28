@@ -6,16 +6,6 @@ import {
 	selectWorkspaceStackDetails,
 } from "$lib/stacks/headInfoAdapters";
 import {
-	applyMoveResult,
-	parseMoveIntent,
-	validatePlacement,
-	validateMoveIntent,
-	getAffectedStackIds,
-	getAffectedCommitIds,
-	type CommitMoveIntent,
-	type StackReorderIntent,
-} from "$lib/stacks/stackMoveOptimistic";
-import {
 	changesSelectors,
 	commitSelectors,
 	selectChangesByPaths,
@@ -37,7 +27,7 @@ import type { ReduxError } from "$lib/error/reduxError";
 import type { DefaultForgeFactory } from "$lib/forge/forgeFactory.svelte";
 import type { BackendApi } from "$lib/state/backendApi";
 import type { AppDispatch } from "$lib/state/clientState.svelte";
-import type { AbsorptionTarget, DiffSpec, InsertSide, RelativeTo, Stack } from "@gitbutler/but-sdk";
+import type { AbsorptionTarget, DiffSpec, Stack } from "@gitbutler/but-sdk";
 
 export { REJECTTION_REASONS } from "$lib/stacks/stackEndpoints";
 
@@ -665,162 +655,8 @@ export class StackService {
 		return this.backendApi.endpoints.removeBranch.useMutation();
 	}
 
-	/**
-	 * Commit move with full optimistic update and rollback.
-	 * Uses unified coordination layer for placement and state management.
-	 * Success path uses backend response as authoritative state.
-	 */
-	async commitMove(intent: CommitMoveIntent & { dryRun: boolean }) {
-		const { projectId, dryRun } = intent;
-
-		const currentState = this.backendApi.endpoints.workspaceDetails.select({ projectId })(
-			this.dispatch((state: unknown) => state),
-		);
-
-		const originalData = currentState?.data;
-		if (!originalData) {
-			return await this.backendApi.endpoints.commitMove.mutate({
-				projectId,
-				subjectCommitIds: intent.subjectCommitIds,
-				relativeTo: intent.relativeTo,
-				side: intent.side,
-				dryRun,
-			});
-		}
-
-		const validation = validateMoveIntent(originalData, intent);
-		if (!validation.valid) {
-			throw new Error(validation.reason ?? "Invalid move");
-		}
-
-		const ctx = parseMoveIntent(intent, originalData);
-		const affectedStackIds = getAffectedStackIds(ctx);
-		const affectedCommitIds = getAffectedCommitIds(ctx);
-
-		const originalSelections: Record<string, unknown> = {};
-		affectedStackIds.forEach((sid) => {
-			const sel = this.uiState.lane(sid).selection.current;
-			if (sel?.commitId && affectedCommitIds.includes(sel.commitId)) {
-				originalSelections[sid] = sel;
-			}
-		});
-
-		const optimisticallyUpdated = applyMoveResult(originalData, intent);
-
-		this.dispatch(
-			this.backendApi.util.upsertQueryData(
-				"workspaceDetails",
-				{ projectId },
-				optimisticallyUpdated,
-			),
-		);
-
-		Object.keys(originalSelections).forEach((sid) => {
-			this.uiState.lane(sid).selection.set(undefined);
-		});
-
-		try {
-			const backendResult = await this.backendApi.endpoints.commitMove.mutate({
-				projectId,
-				subjectCommitIds: intent.subjectCommitIds,
-				relativeTo: intent.relativeTo,
-				side: intent.side,
-				dryRun,
-			});
-
-			this.dispatch(
-				this.backendApi.util.upsertQueryData(
-					"workspaceDetails",
-					{ projectId },
-					backendResult,
-				),
-			);
-
-			return backendResult;
-		} catch (error) {
-			this.dispatch(
-				this.backendApi.util.upsertQueryData(
-					"workspaceDetails",
-					{ projectId },
-					originalData,
-				),
-			);
-
-			Object.entries(originalSelections).forEach(([sid, sel]) => {
-				this.uiState.lane(sid).selection.set(sel as any);
-			});
-
-			throw error;
-		}
-	}
-
-	/**
-	 * Stack reorder with full optimistic update and rollback.
-	 * Uses unified coordination layer consistent with commit moves.
-	 * Success path uses backend response as authoritative state.
-	 */
-	async updateStackOrder(intent: Omit<StackReorderIntent, "kind">) {
-		const { projectId, orderedStackIds } = intent;
-
-		const currentState = this.backendApi.endpoints.workspaceDetails.select({ projectId })(
-			this.dispatch((state: unknown) => state),
-		);
-
-		const originalData = currentState?.data;
-		if (!originalData) {
-			return await this.backendApi.endpoints.updateStackOrder.mutate({
-				projectId,
-				stacks: orderedStackIds.map((id, i) => ({ id, order: i })),
-			});
-		}
-
-		const reorderIntent: StackReorderIntent = {
-			kind: "stack",
-			projectId,
-			orderedStackIds,
-		};
-
-		const validation = validateMoveIntent(originalData, reorderIntent);
-		if (!validation.valid) {
-			throw new Error(validation.reason ?? "Invalid stack order");
-		}
-
-		const optimisticallyUpdated = applyMoveResult(originalData, reorderIntent);
-
-		this.dispatch(
-			this.backendApi.util.upsertQueryData(
-				"workspaceDetails",
-				{ projectId },
-				optimisticallyUpdated,
-			),
-		);
-
-		try {
-			const backendResult = await this.backendApi.endpoints.updateStackOrder.mutate({
-				projectId,
-				stacks: orderedStackIds.map((id, i) => ({ id, order: i })),
-			});
-
-			this.dispatch(
-				this.backendApi.util.upsertQueryData(
-					"workspaceDetails",
-					{ projectId },
-					backendResult,
-				),
-			);
-
-			return backendResult;
-		} catch (error) {
-			this.dispatch(
-				this.backendApi.util.upsertQueryData(
-					"workspaceDetails",
-					{ projectId },
-					originalData,
-				),
-			);
-
-			throw error;
-		}
+	get commitMove() {
+		return this.backendApi.endpoints.commitMove.mutate;
 	}
 
 	get moveBranch() {

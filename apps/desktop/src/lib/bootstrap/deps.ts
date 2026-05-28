@@ -172,6 +172,7 @@ export function initDependencies(args: {
 		gitHubApi: clientState.githubApi,
 		gitLabApi: clientState.gitlabApi,
 		dispatch: clientState.dispatch,
+		getState: () => clientState.rootState,
 		posthog,
 	});
 

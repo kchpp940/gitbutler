@@ -14,6 +14,7 @@ import StackMacros from "$lib/stacks/macros";
 import { toMoveBranchWarning } from "$lib/stacks/stack";
 import { withStackBusy } from "$lib/state/uiState.svelte";
 import { ensureValue } from "$lib/utils/validation";
+import { untrack } from "svelte";
 import type { DropResult } from "$lib/dragging/dropResult";
 import type { DropzoneHandler } from "$lib/dragging/handler";
 import type { ForgePrService } from "$lib/forge/interface/forgePrService";
@@ -204,81 +205,54 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 	}
 
 	async ondropCommitData(data: CommitDropData): Promise<DropResult | void> {
-		const sourceBranchName = data.commit.branchName;
-		const commitIds = data.allCommits.map((c) => c.id);
-
-		let newStackId: string | undefined;
-		let newBranchName: string | undefined;
-
-		try {
-			const stack = await this.stackService.newStackMutation({
-				projectId: this.projectId,
-				branch: { name: undefined },
-			});
-
-			newStackId = ensureValue(stack.id);
-			newBranchName = ensureValue(stack.heads.at(0)?.name);
-
-			const { relativeTo, side } = toCommitMovePlacement({
-				targetBranchName: newBranchName,
-				targetCommitId: "top",
-			});
-
-			let result: DropResult | undefined;
-			let moveFailed = false;
-			await withStackBusy(
-				this.uiState,
-				this.projectId,
-				{ stackIds: [data.stackId, newStackId] },
-				async () => {
-					try {
-						await this.stackService.commitMove({
-							kind: "commit",
-							projectId: this.projectId,
-							subjectCommitIds: commitIds,
-							relativeTo,
-							side,
-							dryRun: false,
-							sourceStackId: data.stackId,
-							sourceBranchName,
-						});
-					} catch (error) {
-						moveFailed = true;
-						const { description, message } = parseError(error);
-						result = {
-							type: "warning",
-							title: "Cannot move commits",
-							message: description ?? message,
-						};
-					}
-				},
-			);
-
-			if (moveFailed && newStackId) {
-				try {
-					await this.stackService.unapply({
-						projectId: this.projectId,
-						stackId: newStackId,
-					});
-				} catch {
-					// Ignore cleanup errors
-				}
-			}
-
-			return result;
-		} catch (error) {
-			if (newStackId) {
-				try {
-					await this.stackService.unapply({
-						projectId: this.projectId,
-						stackId: newStackId,
-					});
-				} catch {
-					// Ignore cleanup errors
-				}
-			}
-			throw error;
+		// Clear the selection from the source lane if any dragged commit was selected.
+		const sourceSelection = untrack(() => this.uiState.lane(data.stackId).selection.current);
+		if (
+			sourceSelection?.commitId &&
+			data.allCommits.some((c) => c.id === sourceSelection.commitId)
+		) {
+			this.uiState.lane(data.stackId).selection.set(undefined);
 		}
+
+		const stack = await this.stackService.newStackMutation({
+			projectId: this.projectId,
+			branch: { name: undefined },
+		});
+
+		const stackId = ensureValue(stack.id);
+		const branchName = ensureValue(stack.heads.at(0)?.name);
+
+		const { relativeTo, side } = toCommitMovePlacement({
+			targetBranchName: branchName,
+			targetCommitId: "top",
+		});
+
+		const commitIds = data.allCommits.map((c) => c.id);
+		let result: DropResult | undefined;
+		await withStackBusy(
+			this.uiState,
+			this.projectId,
+			{ stackIds: [data.stackId, stackId] },
+			async () => {
+				try {
+					await this.stackService.commitMove({
+						projectId: this.projectId,
+						subjectCommitIds: commitIds,
+						relativeTo,
+						side,
+						dryRun: false,
+					});
+				} catch (error) {
+					const { description, message } = parseError(error);
+					result = {
+						type: "warning",
+						title: "Cannot move commits",
+						message: description ?? message,
+					};
+				}
+			},
+		);
+		return result;
 	}
 
 	async ondropBranchData(data: BranchDropData): Promise<DropResult | void> {

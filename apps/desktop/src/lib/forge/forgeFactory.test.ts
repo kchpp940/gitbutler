@@ -30,6 +30,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 
 	// TODO: Replace with a better mock.
 	const dispatch = (() => {}) as AppDispatch;
+	const getState = () => ({});
 	const gitLabApi = {
 		injectEndpoints: vi.fn(),
 	} as unknown as GitLabApi;
@@ -43,9 +44,11 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			getState,
 		});
 		expect(
 			factory.build({
+				projectId: "test-project",
 				repo: {
 					domain: "github.com",
 					name: "test-repo",
@@ -67,9 +70,11 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			getState,
 		});
 		expect(
 			factory.build({
+				projectId: "test-project",
 				repo: {
 					domain: "gitlab.domain.com",
 					name: "test-repo",
@@ -91,9 +96,11 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			getState,
 		});
 		expect(
 			factory.build({
+				projectId: "test-project",
 				repo: {
 					domain: "gitlab.com",
 					name: "test-repo",
@@ -115,8 +122,10 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			getState,
 		});
 		const result = factory.build({
+			projectId: "test-project",
 			repo: {
 				domain: "gitlab.com",
 				name: "test-repo",
@@ -138,8 +147,10 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			getState,
 		});
 		const result = factory.build({
+			projectId: "test-project",
 			repo: {
 				domain: "github.com",
 				name: "test-repo",

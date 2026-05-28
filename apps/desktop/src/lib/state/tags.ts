@@ -50,20 +50,25 @@ type Tag<T extends string | number> = {
 
 const LIST = "LIST";
 
+function scopedListId(scope: string | undefined): string {
+	return scope ? `${scope}:${LIST}` : LIST;
+}
+
 // We always want to provide either, just the list or the list and the item.
 // This means that we can either invalidate all of them, or an individual item.
 
-export function providesList(tag: ReduxTag): Tag<typeof LIST> {
-	return { type: tag, id: LIST };
+export function providesList(tag: ReduxTag, scope?: string): Tag<string> {
+	return { type: tag, id: scopedListId(scope) };
 }
 
 export function providesItem<T extends string | number>(
 	tag: ReduxTag,
 	id: T,
-): [Tag<T>, Tag<typeof LIST>] {
+	scope?: string,
+): [Tag<T | string>, Tag<string>] {
 	return [
 		{ type: tag, id },
-		{ type: tag, id: LIST },
+		{ type: tag, id: scopedListId(scope) },
 	];
 }
 
@@ -74,25 +79,35 @@ export function providesType(tag: ReduxTag): Tag<ReduxTag> {
 export function providesItems<T extends string | number>(
 	tag: ReduxTag,
 	ids: T[],
-): Tag<T | typeof LIST>[] {
+	scope?: string,
+): Tag<T | string>[] {
 	const itemTags = ids.map((id) => ({ type: tag, id }));
-	return [...itemTags, { type: tag, id: LIST }];
+	return [...itemTags, { type: tag, id: scopedListId(scope) }];
 }
 
-export function invalidatesList(tag: ReduxTag): Tag<typeof LIST> {
-	return { type: tag, id: LIST };
+export function invalidatesList(tag: ReduxTag, scope?: string): Tag<string> {
+	return { type: tag, id: scopedListId(scope) };
 }
 
 export function invalidatesItem<
 	T extends string | number | undefined,
-	OutTag = Tag<T extends undefined ? typeof LIST : T>,
->(tag: ReduxTag, id: T): OutTag {
+	OutTag = Tag<T extends undefined ? string : T>,
+>(tag: ReduxTag, id: T, scope?: string): OutTag {
 	if (id === undefined) {
-		return { type: tag, id: LIST } as OutTag;
+		return { type: tag, id: scopedListId(scope) } as OutTag;
 	}
 	return { type: tag, id } as OutTag;
 }
 
 export function invalidatesType(tag: ReduxTag): Tag<ReduxTag> {
 	return { type: tag };
+}
+
+export function forgeScopeTag(
+	provider: string,
+	owner: string,
+	repo: string,
+	tokenId: string,
+): string {
+	return `${provider}:${owner}:${repo}:${tokenId}`;
 }

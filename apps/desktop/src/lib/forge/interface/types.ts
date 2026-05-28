@@ -162,6 +162,7 @@ export type CheckSuite = {
 };
 
 export type ForgeArguments = {
+	projectId: string;
 	repo: RepoInfo;
 	baseBranch: string;
 	forkStr?: string;

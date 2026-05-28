@@ -4,34 +4,86 @@ import { eventualConsistencyCheck } from "$lib/forge/shared/progressivePolling";
 import { providesItem, ReduxTag } from "$lib/state/tags";
 import type { ChecksService } from "$lib/forge/interface/forgeChecksMonitor";
 import type { ChecksStatus } from "$lib/forge/interface/types";
-import type { QueryOptions } from "$lib/state/butlerModule";
-import type { GitHubApi } from "$lib/state/clientState.svelte";
+import type { QueryExtensions, ReactiveQuery } from "$lib/state/butlerModule";
+import type { QueryActionCreatorResult, QueryOptions } from "@reduxjs/toolkit/query";
+import type { GitHubApi, AppDispatch } from "$lib/state/clientState.svelte";
 
 export class GitHubChecksMonitor implements ChecksService {
 	private api: ReturnType<typeof injectEndpoints>;
+	readonly scopeId: string;
+	private subscriptionHandles = new Map<string, QueryActionCreatorResult<any>>();
 
-	constructor(gitHubApi: GitHubApi) {
+	constructor(
+		gitHubApi: GitHubApi,
+		private readonly dispatch: AppDispatch,
+		private readonly getState: () => any,
+		scopeId: string,
+	) {
 		this.api = injectEndpoints(gitHubApi);
+		this.scopeId = scopeId;
 	}
 
-	get(branchName: string, options?: QueryOptions) {
-		return this.api.endpoints.listChecks.useQuery(
-			{ ref: branchName },
-			{
-				transform: (result) => parseChecks(result),
-				...options,
+	private ensureSubscription(
+		queryArg: { scopeId: string; ref: string },
+		pollingInterval?: number,
+	): void {
+		const cacheKey = `${queryArg.scopeId}:${queryArg.ref}`;
+		if (!this.subscriptionHandles.has(cacheKey)) {
+			const result = this.dispatch(
+				this.api.endpoints.listChecks.initiate(queryArg, {
+					subscribe: true,
+					subscriptionOptions: pollingInterval ? { pollingInterval } : undefined,
+				}),
+			);
+			this.subscriptionHandles.set(cacheKey, result);
+		}
+	}
+
+	get(branchName: string, options?: QueryOptions): ReactiveQuery<ChecksStatus | null, QueryExtensions> {
+		const queryArg = { scopeId: this.scopeId, ref: branchName };
+		const pollingInterval = (options?.subscriptionOptions as { pollingInterval?: number } | undefined)?.pollingInterval;
+		this.ensureSubscription(queryArg, pollingInterval);
+		const cacheKey = `${this.scopeId}:${branchName}`;
+
+		const selector = this.api.endpoints.listChecks.select(queryArg);
+		const storeResult = $derived(selector(this.getState()));
+		const output = $derived.by(() => {
+			const data = storeResult.data ? parseChecks(storeResult.data) : null;
+			return {
+				...storeResult,
+				data,
+				refetch: async () => {
+					const handle = this.subscriptionHandles.get(cacheKey);
+					await handle?.refetch();
+				},
+			};
+		});
+
+		return {
+			get result() {
+				return output;
 			},
-		);
+			get response() {
+				return output.data;
+			},
+		};
 	}
 
 	async fetch(branchName: string, options?: QueryOptions) {
 		return await this.api.endpoints.listChecks.fetch(
-			{ ref: branchName },
+			{ scopeId: this.scopeId, ref: branchName },
 			{
 				transform: (result) => parseChecks(result),
-				...options,
+				forceRefetch: options?.forceRefetch,
 			},
 		);
+	}
+
+	dispose(): void {
+		for (const [, handle] of this.subscriptionHandles) {
+			handle.unsubscribe();
+		}
+		this.subscriptionHandles.clear();
 	}
 }
 
@@ -40,16 +92,10 @@ function hasChecks(data: ChecksResult): boolean {
 }
 
 function parseChecks(data: ChecksResult): ChecksStatus | null {
-	// Fetch with retries since checks might not be available _right_ after
-	// the pull request has been created.
-
-	// If there are no checks then there is no status to report
 	if (!hasChecks(data)) return null;
 
 	const checkRuns = data.check_runs;
 
-	// Establish when the first check started running, useful for showing
-	// how long something has been running.
 	const starts = checkRuns
 		.map((run) => run.started_at)
 		.filter((startedAt) => startedAt !== null) as string[];
@@ -75,7 +121,7 @@ function parseChecks(data: ChecksResult): ChecksStatus | null {
 function injectEndpoints(api: GitHubApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
-			listChecks: build.query<ChecksResult, { ref: string }>({
+			listChecks: build.query<ChecksResult, { scopeId: string; ref: string }>({
 				queryFn: async ({ ref }, api) => {
 					async function listChecksForRef() {
 						return await ghQuery({
@@ -91,12 +137,14 @@ function injectEndpoints(api: GitHubApi) {
 
 					return eventualConsistencyCheck(listChecksForRef, (response) => {
 						if (response.error) {
-							return true; // Stop if there's an error
+							return true;
 						}
 						return hasChecks(response.data);
 					});
 				},
-				providesTags: (_result, _error, args) => [...providesItem(ReduxTag.Checks, args.ref)],
+				providesTags: (_result, _error, { scopeId, ref }) => [
+					...providesItem(ReduxTag.Checks, ref, scopeId),
+				],
 			}),
 		}),
 	});

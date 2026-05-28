@@ -16,6 +16,8 @@ export interface Forge {
 	readonly name: ForgeName;
 	readonly isLoading: boolean;
 	readonly authenticated: boolean;
+	// Scope identifier for cache isolation
+	readonly scopeId: string;
 	// Lists PRs for the repo.
 	get listService(): ForgeListingService | undefined;
 
@@ -39,4 +41,7 @@ export interface Forge {
 	commitUrl(id: string): string | undefined;
 
 	invalidate(tags: TagDescription<ReduxTag>[]): PayloadAction<any> | undefined;
+
+	// Dispose all active subscriptions and clear state
+	dispose(): void;
 }

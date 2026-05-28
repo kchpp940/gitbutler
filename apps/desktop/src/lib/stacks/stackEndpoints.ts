@@ -230,7 +230,7 @@ export function buildStackEndpoints(build: BackendEndpointBuilder) {
 			],
 		}),
 		updateStackOrder: build.mutation<
-			WorkspaceDetails,
+			void,
 			{ projectId: string; stacks: { id: string; order: number }[] }
 		>({
 			extraOptions: {
@@ -238,10 +238,10 @@ export function buildStackEndpoints(build: BackendEndpointBuilder) {
 				actionName: "Update Stack Order",
 			},
 			query: (args) => args,
-			transformResponse(response: RefInfo) {
-				return transformWorkspaceDetails(response);
-			},
-			invalidatesTags: [invalidatesList(ReduxTag.Stacks)],
+			// This invalidation causes the order to jump back and forth
+			// on save, and it's a bit unclear why. It's not important to
+			// reload, however, so leaving it like this for now.
+			// invalidatesTags: [invalidatesList(ReduxTag.Stacks)]
 		}),
 		/**
 		 * Note: This is specifically for looking up branches outside of
@@ -657,7 +657,7 @@ export function buildStackEndpoints(build: BackendEndpointBuilder) {
 		 * the top of that destination stack.
 		 */
 		commitMove: build.mutation<
-			WorkspaceDetails,
+			void,
 			{
 				projectId: string;
 				subjectCommitIds: Array<string>;
@@ -671,9 +671,6 @@ export function buildStackEndpoints(build: BackendEndpointBuilder) {
 				actionName: "Move Commit",
 			},
 			query: (args) => args,
-			transformResponse(response: RefInfo) {
-				return transformWorkspaceDetails(response);
-			},
 			invalidatesTags: [
 				invalidatesList(ReduxTag.HeadSha),
 				invalidatesList(ReduxTag.WorktreeChanges), // Moving commits can cause conflicts
