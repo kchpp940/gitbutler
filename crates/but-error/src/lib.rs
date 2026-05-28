@@ -172,6 +172,16 @@ pub enum Code {
     /// Not a bug — the user's request simply can't be fulfilled right now.
     /// The frontend should present this as a warning rather than an error.
     PreconditionFailed,
+    /// The project database is corrupted and needs recovery.
+    ProjectDatabaseCorrupted,
+    /// The repository has Git filters (like LFS) configured that may cause issues.
+    ProjectFilterWarning,
+    /// Insufficient permissions to access the repository or its files.
+    ProjectPermissionDenied,
+    /// The project is already open in another window.
+    ProjectAlreadyOpenInAnotherWindow,
+    /// The path is not a valid Git repository.
+    ProjectInvalidGitRepository,
 }
 
 #[cfg(feature = "export-schema")]

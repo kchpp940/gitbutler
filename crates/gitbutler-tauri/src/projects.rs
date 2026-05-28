@@ -33,15 +33,44 @@ pub fn server_capabilities() -> Result<but_api::platform::ServerCapabilities, js
     })
 }
 
+/// A structured warning or error that occurred during project activation.
+#[derive(Debug, serde::Serialize, strum::Display, Clone)]
+#[serde(tag = "code", content = "details")]
+pub enum ProjectActivationIssue {
+    /// The project database was corrupted and has been recovered.
+    DatabaseCorrupted {
+        /// The database file path that was corrupted.
+        db_path: String,
+        /// The backup path where the corrupted database was moved.
+        backup_path: String,
+        /// The raw error message for debugging.
+        error: String,
+    },
+    /// The project uses Git filters (like LFS) that may cause issues.
+    FilterWarning {
+        /// List of filter names detected (e.g., "lfs").
+        filters: Vec<String>,
+        /// Sample of files affected by filters.
+        affected_files: Vec<String>,
+        /// Whether LFS is among the detected filters.
+        has_lfs: bool,
+    },
+    /// The project is already open in another window.
+    AlreadyOpenInAnotherWindow,
+    /// Insufficient permissions to access the repository.
+    PermissionDenied {
+        /// The path that couldn't be accessed.
+        path: String,
+    },
+}
+
 /// Additional information to help the user interface communicate what happened with the project.
 #[derive(Debug, serde::Serialize)]
 pub struct ProjectInfo {
     /// `true` if the window is the first one to open the project.
     is_exclusive: bool,
-    /// The display version of the error that communicates what went wrong while opening the database.
-    db_error: Option<String>,
-    /// Provide information about the project just opened.
-    headsup: Option<String>,
+    /// Issues encountered during project activation (warnings and recoverable errors).
+    issues: Vec<ProjectActivationIssue>,
 }
 
 /// This trigger is the GUI telling us that the project with `id` is now displayed.
@@ -67,22 +96,31 @@ pub fn set_project_active(
     };
     but_api::legacy::projects::prepare_project_for_activation(&mut ctx)?;
 
-    let db_error = assure_database_valid(ctx.project_data_dir())?;
-    let filter_error = warn_about_filters_and_git_lfs(&*ctx.repo.get()?)?;
-    for err in [&db_error, &filter_error] {
-        if let Some(err) = &err {
-            tracing::error!("{err}");
-        }
+    let mut issues: Vec<ProjectActivationIssue> = Vec::new();
+
+    if let Some(db_issue) = assure_database_valid(ctx.project_data_dir())? {
+        tracing::error!("{}", db_issue);
+        issues.push(db_issue);
     }
+
+    if let Some(filter_issue) = warn_about_filters_and_git_lfs(&*ctx.repo.get()?)? {
+        tracing::warn!("{}", filter_issue);
+        issues.push(filter_issue);
+    }
+
     let mode = window_state.set_project_to_window(window.label(), &app_settings_sync, &mut ctx)?;
     let is_exclusive = match mode {
         ProjectAccessMode::First => true,
         ProjectAccessMode::Shared => false,
     };
+
+    if !is_exclusive {
+        issues.push(ProjectActivationIssue::AlreadyOpenInAnotherWindow);
+    }
+
     Ok(Some(ProjectInfo {
         is_exclusive,
-        db_error,
-        headsup: filter_error,
+        issues,
     }))
 }
 
@@ -107,7 +145,7 @@ pub fn open_project_in_window(
 
 /// Fatal errors are returned as error, fixed errors for tracing will be `Some(err)`
 #[instrument(level = "debug")]
-fn assure_database_valid(data_dir: PathBuf) -> anyhow::Result<Option<String>> {
+fn assure_database_valid(data_dir: PathBuf) -> anyhow::Result<Option<ProjectActivationIssue>> {
     use rusqlite::ErrorCode;
     if let Err(err) = but_db::DbHandle::new_in_directory(&data_dir) {
         let db_path = but_db::DbHandle::db_file_path(&data_dir);
@@ -140,18 +178,20 @@ fn assure_database_valid(data_dir: PathBuf) -> anyhow::Result<Option<String>> {
             }
 
             if let Err(err) = std::fs::rename(&db_path, &backup_path) {
-                bail!(
-                    "Failed to rename {} to {} - application may fail to startup: {err}",
-                    db_path.display(),
-                    backup_path.display()
-                );
+                return Err(err)
+                    .context(format!(
+                        "Failed to rename {} to {}",
+                        db_path.display(),
+                        backup_path.display()
+                    ))
+                    .context(but_error::Code::ProjectDatabaseCorrupted);
             }
 
-            return Ok(Some(format!(
-                "Could not open db file at '{}'.\nIt was moved to {} for recovery. \n\nError was: {err}",
-                db_path.display(),
-                backup_path.display()
-            )));
+            return Ok(Some(ProjectActivationIssue::DatabaseCorrupted {
+                db_path: db_path.display().to_string(),
+                backup_path: backup_path.display().to_string(),
+                error: err.to_string(),
+            }));
         }
         bail!(
             "Database file at '{db_path} has {max_attempts} corrupted copies - giving up, application probably won't work",
@@ -161,8 +201,10 @@ fn assure_database_valid(data_dir: PathBuf) -> anyhow::Result<Option<String>> {
     Ok(None)
 }
 
-/// Return an error message that
-fn warn_about_filters_and_git_lfs(repo: &gix::Repository) -> anyhow::Result<Option<String>> {
+/// Check for Git filters like LFS and return a structured warning if found.
+fn warn_about_filters_and_git_lfs(
+    repo: &gix::Repository,
+) -> anyhow::Result<Option<ProjectActivationIssue>> {
     let index = repo.index_or_empty()?;
     let mut cache = repo.attributes_only(
         &index,
@@ -192,27 +234,16 @@ fn warn_about_filters_and_git_lfs(repo: &gix::Repository) -> anyhow::Result<Opti
     }
 
     let has_lfs = all_filters.contains("lfs");
-    let mut msg = format!(
-        "Worktree filter(s) detected: {comma_separated}\n\
-Filters will silently not be applied during workspace operations to the files listed below.\n\
-Ensure these aren't touched by GitButler or avoid using it in this repository.",
-        comma_separated = Vec::from_iter(all_filters).join(", ")
-    );
-    if has_lfs {
-        msg.push_str(
-            r#"
-
-`git lfs pull --include="*"` can be used to restore git-lfs files after GitButler touched them."#,
-        );
-    }
     let max_files = 10;
-    msg.push_str("\n\n");
-    msg.push_str(&files_with_filter[..files_with_filter.len().min(max_files)].join("\n"));
-    if files_with_filter.len() > max_files {
-        msg.push_str(&format!(
-            "\n[and {} more]",
-            files_with_filter.len() - max_files
-        ));
-    }
-    Ok(Some(msg))
+    let filters: Vec<String> = all_filters.into_iter().collect();
+    let affected_files: Vec<String> = files_with_filter
+        .into_iter()
+        .take(max_files)
+        .collect();
+
+    Ok(Some(ProjectActivationIssue::FilterWarning {
+        filters,
+        affected_files,
+        has_lfs,
+    }))
 }

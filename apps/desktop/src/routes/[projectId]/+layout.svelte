@@ -13,7 +13,6 @@
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
-	import { showError } from "$lib/error/showError";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { GITHUB_CLIENT } from "$lib/forge/github/githubClient";
 	import { useGitHubAccessToken } from "$lib/forge/github/hooks.svelte";
@@ -26,8 +25,9 @@
 	import { projectChannel } from "$lib/irc/protocol";
 	import { WORKING_FILES_BROADCAST } from "$lib/irc/workingFilesBroadcast.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
-	import { showInfo, showWarning } from "$lib/notifications/toasts";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { handleProjectCommandError } from "$lib/project/project";
+	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
@@ -368,29 +368,53 @@
 
 			if (!info) return;
 
-			if (!info.is_exclusive) {
-				showInfo(
-					"Just FYI, this project is already open in another window",
-					"There might be some unexpected behavior if you open it in multiple windows",
-				);
-			}
+			const filteredIssues = info.issues.filter(
+				(issue) =>
+					!(
+						issue.code === "FilterWarning" &&
+						localStorage.getItem(dontShowAgainKey) === "1"
+					),
+			);
 
-			if (info.db_error) {
-				showError("The database was corrupted", info.db_error);
-			}
+			for (const issue of filteredIssues) {
+				let path: string | undefined;
+				if (issue.code === "PermissionDenied") {
+					path = issue.details.path;
+				} else if (issue.code === "FilterWarning") {
+					path = issue.details.affected_files[0];
+				} else if (issue.code === "DatabaseCorrupted") {
+					path = issue.details.db_path;
+				}
 
-			if (info.headsup && localStorage.getItem(dontShowAgainKey) !== "1") {
-				showWarning("Important PSA", info.headsup, {
-					label: "Don't show again",
-					onClick: (dismiss) => {
-						localStorage.setItem(dontShowAgainKey, "1");
-						dismiss();
-					},
+				PROJECT_ERROR_STORE.addActivationIssue(issue, {
+					retry: () => setActiveProjectOrRedirect(projectId),
+					path,
+					projectId,
 				});
+
+				switch (issue.code) {
+					case "AlreadyOpenInAnotherWindow":
+						posthog.captureOnboarding(
+							OnboardingEvent.ProjectAlreadyOpenInAnotherWindow,
+						);
+						break;
+					case "DatabaseCorrupted":
+						posthog.captureOnboarding(OnboardingEvent.ProjectDatabaseCorrupted);
+						break;
+					case "FilterWarning":
+						posthog.captureOnboarding(OnboardingEvent.ProjectFilterWarning);
+						break;
+					case "PermissionDenied":
+						posthog.captureOnboarding(OnboardingEvent.ProjectPermissionDenied);
+						break;
+				}
 			}
 		} catch (error: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActiveFailed);
-			showError("Failed to set the project active", error);
+			handleProjectCommandError(error, {
+				retry: () => setActiveProjectOrRedirect(projectId),
+				projectId,
+			});
 		}
 	}
 

@@ -3,27 +3,14 @@
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Link, Select, SelectItem, Toggle } from "@gitbutler/ui";
-	import { bindGeneralField } from "$lib/settings/settingsDraft";
+	import { onMount } from "svelte";
 
 	const gitConfig = inject(GIT_CONFIG_SERVICE);
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settings = settingsService.appSettings;
 
-	const annotateCommits = bindGeneralField(
-		"annotateCommits",
-		() => (settings.$ ? (settings.$ as any).gitbutlerCommitter === "1" : true),
-		async (v: boolean) => {
-			await gitConfig.set("gitbutler.gitbutlerCommitter", v ? "1" : "0");
-		},
-	);
-
-	const fetchFrequency = bindGeneralField(
-		"fetchIntervalMinutes",
-		() => (settings.$ ? (settings.$ as any).fetch.autoFetchIntervalMinutes : -1),
-		async (v: number) => {
-			await settingsService.updateFetch({ autoFetchIntervalMinutes: v });
-		},
-	);
+	let annotateCommits = $state(true);
+	let fetchFrequency = $state<number>(-1);
 
 	const fetchFrequencyOptions = [
 		{ label: "1 minute", value: "1", minutes: 1 },
@@ -34,19 +21,31 @@
 	] as const;
 
 	function toggleCommitterSigning() {
-		annotateCommits.set(!annotateCommits.current);
+		annotateCommits = !annotateCommits;
+		gitConfig.set("gitbutler.gitbutlerCommitter", annotateCommits ? "1" : "0");
 	}
 
-	function updateFetchFrequency(value: string) {
+	async function updateFetchFrequency(value: string) {
 		const option = fetchFrequencyOptions.find((opt) => opt.value === value);
 		if (option) {
-			fetchFrequency.set(option.minutes);
+			fetchFrequency = option.minutes;
+			await settingsService.updateFetch({ autoFetchIntervalMinutes: option.minutes });
 		}
 	}
 
 	const selectedValue = $derived(
-		fetchFrequencyOptions.find((opt) => opt.minutes === fetchFrequency.current)?.value ?? "none",
+		fetchFrequencyOptions.find((opt) => opt.minutes === fetchFrequency)?.value ?? "none",
 	);
+
+	onMount(async () => {
+		annotateCommits = (await gitConfig.get("gitbutler.gitbutlerCommitter")) === "1";
+	});
+
+	$effect(() => {
+		if ($settings?.fetch) {
+			fetchFrequency = $settings.fetch.autoFetchIntervalMinutes;
+		}
+	});
 </script>
 
 <CardGroup.Item standalone labelFor="committerSigning">
@@ -63,7 +62,7 @@
 		</Link>
 	{/snippet}
 	{#snippet actions()}
-		<Toggle id="committerSigning" checked={annotateCommits.current} onclick={toggleCommitterSigning} />
+		<Toggle id="committerSigning" checked={annotateCommits} onclick={toggleCommitterSigning} />
 	{/snippet}
 </CardGroup.Item>
 

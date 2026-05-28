@@ -357,6 +357,8 @@ pub enum AddProjectOutcome {
     NoWorkdir,
     NoDotGitDirectory,
     NotAGitRepository(String),
+    PermissionDenied(String),
+    RepoOwnership(String),
 }
 
 impl AddProjectOutcome {
@@ -392,6 +394,12 @@ impl AddProjectOutcome {
             }
             AddProjectOutcome::NotAGitRepository(msg) => {
                 Err(anyhow::anyhow!("not a git repository: {msg}"))
+            }
+            AddProjectOutcome::PermissionDenied(msg) => {
+                Err(anyhow::anyhow!("permission denied: {msg}"))
+            }
+            AddProjectOutcome::RepoOwnership(msg) => {
+                Err(anyhow::anyhow!("repository ownership issue: {msg}"))
             }
         }
     }

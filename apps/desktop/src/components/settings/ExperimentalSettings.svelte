@@ -4,34 +4,11 @@
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Toggle } from "@gitbutler/ui";
-	import { bindGeneralField } from "$lib/settings/settingsDraft";
 
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settingsStore = settingsService.appSettings;
 
 	const userService = inject(USER_SERVICE);
-
-	const fMode = bindGeneralField<boolean>(
-		"fModeEnabled",
-		() => {
-			let v: any;
-			fModeEnabled.subscribe((val: any) => (v = val))();
-			return v ?? true;
-		},
-		(v) => fModeEnabled.set(v),
-	);
-
-	const singleBranch = bindGeneralField<boolean>(
-		"featureFlagSingleBranch",
-		() => $settingsStore?.featureFlags.singleBranch ?? false,
-		(v) => settingsService.updateFeatureFlags({ singleBranch: v }),
-	);
-
-	const irc = bindGeneralField<boolean>(
-		"featureFlagIrc",
-		() => $settingsStore?.featureFlags.irc ?? false,
-		(v) => settingsService.updateFeatureFlags({ irc: v }),
-	);
 </script>
 
 <p class="text-12 text-body experimental-settings__text">
@@ -51,8 +28,8 @@
 		{#snippet actions()}
 			<Toggle
 				id="f-mode"
-				checked={fMode.current}
-				onclick={() => fMode.set(!fMode.current)}
+				checked={$fModeEnabled}
+				onclick={() => fModeEnabled.set(!$fModeEnabled)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -68,8 +45,11 @@
 			{#snippet actions()}
 				<Toggle
 					id="single-branch"
-					checked={singleBranch.current}
-					onclick={() => singleBranch.set(!singleBranch.current)}
+					checked={$settingsStore?.featureFlags.singleBranch}
+					onclick={() =>
+						settingsService.updateFeatureFlags({
+							singleBranch: !$settingsStore?.featureFlags.singleBranch,
+						})}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -85,8 +65,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="irc"
-				checked={irc.current}
-				onclick={() => irc.set(!irc.current)}
+				checked={$settingsStore?.featureFlags.irc}
+				onclick={() =>
+					settingsService.updateFeatureFlags({ irc: !$settingsStore?.featureFlags.irc })}
 			/>
 		{/snippet}
 	</CardGroup.Item>

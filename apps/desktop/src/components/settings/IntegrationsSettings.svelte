@@ -4,16 +4,15 @@
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Spacer, Toggle } from "@gitbutler/ui";
-	import { bindGeneralField } from "$lib/settings/settingsDraft";
 
 	const settingsService = inject(SETTINGS_SERVICE);
 	const appSettings = settingsService.appSettings;
 
-	const autoFillPrDescription = bindGeneralField<boolean>(
-		"autoFillPrDescription",
-		() => $appSettings?.reviews.autoFillPrDescriptionFromCommit ?? true,
-		(v) => settingsService.updateReviews({ autoFillPrDescriptionFromCommit: v }),
-	);
+	async function toggleAutoFillPrDescription() {
+		await settingsService.updateReviews({
+			autoFillPrDescriptionFromCommit: !$appSettings?.reviews.autoFillPrDescriptionFromCommit,
+		});
+	}
 </script>
 
 <GithubIntegration />
@@ -30,8 +29,8 @@
 		{#snippet actions()}
 			<Toggle
 				id="autoFillPrDescription"
-				checked={autoFillPrDescription.current}
-				onclick={() => autoFillPrDescription.set(!autoFillPrDescription.current)}
+				checked={$appSettings?.reviews.autoFillPrDescriptionFromCommit ?? true}
+				onclick={toggleAutoFillPrDescription}
 			/>
 		{/snippet}
 	</CardGroup.Item>

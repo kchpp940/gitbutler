@@ -1,10 +1,14 @@
 import { goto } from "$app/navigation";
+import { showError } from "$lib/error/showError";
 import { showToast } from "$lib/notifications/toasts";
 import { projectPath } from "$lib/routes/routes.svelte";
 import { TestId } from "@gitbutler/ui";
 // Inlined to avoid circular import with forge/.
 type ForgeName = "github" | "gitlab" | "bitbucket" | "azure" | "default";
 import type { ApiProject, ForgeUser } from "@gitbutler/but-sdk";
+import type { Code } from "@gitbutler/but-sdk";
+import type { ReduxError } from "$lib/error/reduxError";
+import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
 
 export type Project = {
 	id: string;
@@ -63,16 +67,101 @@ export type AddProjectOutcome =
 	  }
 	| {
 			type: "notAGitRepository";
-			/**
-			 * The error message received
-			 */
+			subject: string;
+	  }
+	| {
+			type: "permissionDenied";
+			subject: string;
+	  }
+	| {
+			type: "repoOwnership";
 			subject: string;
 	  };
 
-/**
- * Correctly handle the outcome of an addProject operation by passing the project to the callback or
- * showing toasts as necessary.
- */
+const PROJECT_ERROR_MESSAGES: Record<
+	string,
+	{ title: string; message: string; style: "danger" | "warning" | "info" }
+> = {
+	ProjectDatabaseCorrupted: {
+		title: "Database corrupted",
+		message:
+			"The project database was corrupted and has been recovered. A new database was created — your worktree is safe, but virtual branches may need to be reconfigured.",
+		style: "danger",
+	},
+	ProjectDatabaseIncompatible: {
+		title: "Database incompatible",
+		message:
+			"The project database was created by a newer version of GitButler and cannot be opened. Please update GitButler.",
+		style: "danger",
+	},
+	ProjectFilterWarning: {
+		title: "Git filters detected",
+		message:
+			"This repository uses Git filters (e.g. LFS) that will not be applied during workspace operations. Run `git lfs pull` after operations to restore files.",
+		style: "warning",
+	},
+	ProjectPermissionDenied: {
+		title: "Permission denied",
+		message:
+			"GitButler does not have permission to access this repository. Check the file permissions for the project directory.",
+		style: "danger",
+	},
+	ProjectAlreadyOpenInAnotherWindow: {
+		title: "Project already open",
+		message:
+			"This project is already open in another window. Opening it in multiple windows may cause unexpected behavior.",
+		style: "info",
+	},
+	ProjectInvalidGitRepository: {
+		title: "Not a valid Git repository",
+		message:
+			"The selected path is not a valid Git repository. Initialize one with `git init` or choose a different directory.",
+		style: "warning",
+	},
+	RepoOwnership: {
+		title: "Repository ownership issue",
+		message:
+			"Git considers this repository unsafe. Run `git config --global --add safe.directory <path>` to allow access.",
+		style: "warning",
+	},
+};
+
+export function handleProjectCommandError(
+	error: unknown,
+	options?: {
+		retry?: () => Promise<void> | void;
+		path?: string;
+		projectId?: string;
+	},
+): void {
+	const code = extractErrorCode(error);
+	if (code && PROJECT_ERROR_MESSAGES[code]) {
+		const message = extractErrorMessage(error);
+		PROJECT_ERROR_STORE.addCommandError(code, message, {
+			retry: options?.retry,
+			path: options?.path,
+			projectId: options?.projectId,
+			raw: error,
+		});
+	} else {
+		showError("Failed to add project", error);
+	}
+}
+
+export function extractErrorCode(error: unknown): Code | undefined {
+	if (error && typeof error === "object" && "code" in error) {
+		return (error as { code?: Code }).code;
+	}
+	return undefined;
+}
+
+export function extractErrorMessage(error: unknown): string {
+	if (error && typeof error === "object" && "message" in error) {
+		return String((error as { message?: unknown }).message) || "Unknown error";
+	}
+	return "Unknown error";
+}
+
 export function handleAddProjectOutcome(
 	outcome: AddProjectOutcome,
 	onAdded?: (project: Project) => void,
@@ -98,56 +187,15 @@ export function handleAddProjectOutcome(
 			});
 			return true;
 		case "pathNotFound":
-			showToast({
-				style: "warning",
-				title: "Path not found",
-				message: "The specified path does not exist on the filesystem.",
-			});
-			return true;
 		case "notADirectory":
-			showToast({
-				style: "warning",
-				title: "Not a directory",
-				message: "The specified path is not a directory.",
-			});
-			return true;
 		case "bareRepository":
-			showToast({
-				testId: TestId.AddProjectBareRepoModal,
-				style: "danger",
-				title: "Bare repository",
-				message: "The specified path appears to be a bare Git repository and cannot be added.",
-			});
-			return true;
 		case "nonMainWorktree":
-			showToast({
-				style: "warning",
-				title: "Non-main worktree",
-				message: "The specified path is not the main worktree of the repository.",
-			});
-			return true;
 		case "noWorkdir":
-			showToast({
-				style: "warning",
-				title: "No workdir",
-				message: "The specified repository does not have a working directory.",
-			});
-			return true;
 		case "noDotGitDirectory":
-			showToast({
-				testId: TestId.AddProjectNoDotGitDirectoryModal,
-				style: "warning",
-				title: "No .git directory",
-				message: "The specified path does not contain a .git directory.",
-			});
-			return true;
 		case "notAGitRepository":
-			showToast({
-				testId: TestId.AddProjectNotAGitRepoModal,
-				style: "warning",
-				title: "Not a Git repository",
-				message: `Unable to add project: ${outcome.subject}`,
-			});
+		case "permissionDenied":
+		case "repoOwnership":
+			PROJECT_ERROR_STORE.addOutcomeError(outcome);
 			return true;
 	}
 }

@@ -5,7 +5,13 @@
 	import IconLink from "$components/shared/IconLink.svelte";
 	import cloneRepoSvg from "$lib/assets/welcome/clone-repo.svg?raw";
 	import newProjectSvg from "$lib/assets/welcome/new-local-project.svg?raw";
-	import { handleAddProjectOutcome } from "$lib/project/project";
+	import {
+		handleAddProjectOutcome,
+		handleProjectCommandError,
+		extractErrorCode,
+		extractErrorMessage,
+	} from "$lib/project/project";
+	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
@@ -27,10 +33,29 @@
 
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProject);
 			if (outcome) {
-				handleAddProjectOutcome(outcome);
+				if (outcome.type === "added" || outcome.type === "alreadyExists") {
+					handleAddProjectOutcome(outcome);
+				} else {
+					posthog.captureOnboarding(OnboardingEvent.AddLocalProjectFailed, {
+						type: outcome.type,
+					});
+					PROJECT_ERROR_STORE.addOutcomeError(outcome, {
+						retry: onNewProject,
+					});
+				}
 			}
 		} catch (e: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProjectFailed, e);
+			const code = extractErrorCode(e);
+			if (code && code.startsWith("Project")) {
+				const message = extractErrorMessage(e);
+				PROJECT_ERROR_STORE.addCommandError(code, message, {
+					retry: onNewProject,
+					raw: e,
+				});
+			} else {
+				handleProjectCommandError(e);
+			}
 		} finally {
 			newProjectLoading = false;
 		}
@@ -43,6 +68,7 @@
 
 <div class="welcome" data-testid={TestId.WelcomePage}>
 	<h1 class="welcome-title text-serif-42">Welcome to GitButler!</h1>
+
 	<div class="welcome__actions">
 		<div class="welcome__actions--repo">
 			<input

@@ -7,25 +7,6 @@ import type {
 	ProjectSettingsPageId,
 } from "$lib/state/uiState.svelte";
 
-let closeInterceptor: (() => boolean) | null = $state(null);
-
-export function setCloseInterceptor(fn: (() => boolean) | null): () => void {
-	closeInterceptor = fn;
-	return () => {
-		if (closeInterceptor === fn) {
-			closeInterceptor = null;
-		}
-	};
-}
-
-export function getCloseInterceptor(): (() => boolean) | null {
-	return closeInterceptor;
-}
-
-export function clearCloseInterceptor(): void {
-	closeInterceptor = null;
-}
-
 export function useSettingsModal() {
 	const uiState = inject(UI_STATE);
 

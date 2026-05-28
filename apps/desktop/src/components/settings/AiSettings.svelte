@@ -20,143 +20,166 @@
 		Spacer,
 		Textbox,
 	} from "@gitbutler/ui";
-	import { bindGeneralField } from "$lib/settings/settingsDraft";
+
+	import { onMount, tick } from "svelte";
+	import { run } from "svelte/legacy";
 
 	const gitConfigService = inject(GIT_CONFIG_SERVICE);
 	const secretsService = inject(SECRET_SERVICE);
 	const aiService = inject(AI_SERVICE);
 	const userService = inject(USER_SERVICE);
+	let initialized = false;
 
-	const aiModelKind = bindGeneralField<ModelKind>(
-		"aiModelKind",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.ModelProvider);
-			return (val as ModelKind) || ModelKind.OpenAI;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.ModelProvider, v),
-	);
+	let modelKind: ModelKind | undefined = $state();
+	let openAIKeyOption: KeyOption | undefined = $state();
+	let anthropicKeyOption: KeyOption | undefined = $state();
+	let openAIKey: string | undefined = $state();
+	let openAICustomEndpoint: string | undefined = $state();
+	let openAIModelName: OpenAIModelName | undefined = $state();
+	let anthropicKey: string | undefined = $state();
+	let anthropicModelName: AnthropicModelName | undefined = $state();
+	let diffLengthLimit: number | undefined = $state();
+	let ollamaEndpoint: string | undefined = $state();
+	let ollamaModel: string | undefined = $state();
+	let lmStudioEndpoint: string | undefined = $state();
+	let lmStudioModel: string | undefined = $state();
+	let openRouterKey: string | undefined = $state();
+	let openRouterModel: string | undefined = $state();
 
-	const openAIKeyOption = bindGeneralField<KeyOption>(
-		"openAIKeyOption",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.OpenAIKeyOption);
-			return (val as KeyOption) || KeyOption.GitButler;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.OpenAIKeyOption, v),
-	);
+	async function setConfiguration(key: GitAIConfigKey, value: string | undefined) {
+		if (!initialized) return;
+		gitConfigService.set(key, value || "");
+	}
 
-	const openAIModelName = bindGeneralField<OpenAIModelName>(
-		"openAIModelName",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.OpenAIModelName);
-			return (val as OpenAIModelName) || OpenAIModelName.GPT54Nano;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.OpenAIModelName, v),
-	);
+	async function setSecret(handle: AISecretHandle, secret: string | undefined) {
+		if (!initialized) return;
+		await secretsService.set(handle, secret || "");
+	}
 
-	const openAICustomEndpoint = bindGeneralField<string>(
-		"openAICustomEndpoint",
-		() => gitConfigService.get(GitAIConfigKey.OpenAICustomEndpoint) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.OpenAICustomEndpoint, v),
-	);
+	onMount(async () => {
+		modelKind = await aiService.getModelKind();
 
-	const openAIKey = bindGeneralField<string>(
-		"openAIKey",
-		() => secretsService.get(AISecretHandle.OpenAIKey) || "",
-		(v) => secretsService.set(AISecretHandle.OpenAIKey, v),
-	);
+		openAIKeyOption = await aiService.getOpenAIKeyOption();
+		openAIModelName = await aiService.getOpenAIModelName();
+		openAIKey = await aiService.getOpenAIKey();
+		openAICustomEndpoint = await aiService.getOpenAICustomEndpoint();
 
-	const anthropicKeyOption = bindGeneralField<KeyOption>(
-		"anthropicKeyOption",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.AnthropicKeyOption);
-			return (val as KeyOption) || KeyOption.GitButler;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.AnthropicKeyOption, v),
-	);
+		anthropicKeyOption = await aiService.getAnthropicKeyOption();
+		anthropicModelName = await aiService.getAnthropicModelName();
+		anthropicKey = await aiService.getAnthropicKey();
 
-	const anthropicModelName = bindGeneralField<AnthropicModelName>(
-		"anthropicModelName",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.AnthropicModelName);
-			return (val as AnthropicModelName) || AnthropicModelName.Haiku;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.AnthropicModelName, v),
-	);
+		diffLengthLimit = await aiService.getDiffLengthLimit();
 
-	const anthropicKey = bindGeneralField<string>(
-		"anthropicKey",
-		() => secretsService.get(AISecretHandle.AnthropicKey) || "",
-		(v) => secretsService.set(AISecretHandle.AnthropicKey, v),
-	);
+		ollamaEndpoint = await aiService.getOllamaEndpoint();
+		ollamaModel = await aiService.getOllamaModelName();
 
-	const diffLengthLimit = bindGeneralField<number>(
-		"diffLengthLimit",
-		() => {
-			const val = gitConfigService.get(GitAIConfigKey.DiffLengthLimit);
-			return val ? parseInt(val, 10) : 10000;
-		},
-		(v) => gitConfigService.set(GitAIConfigKey.DiffLengthLimit, v.toString()),
-	);
+		lmStudioEndpoint = await aiService.getLMStudioEndpoint();
+		lmStudioModel = await aiService.getLMStudioModelName();
 
-	const ollamaEndpoint = bindGeneralField<string>(
-		"ollamaEndpoint",
-		() => gitConfigService.get(GitAIConfigKey.OllamaEndpoint) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.OllamaEndpoint, v),
-	);
+		openRouterKey = await aiService.getOpenRouterKey();
+		openRouterModel = await aiService.getOpenRouterModelName();
 
-	const ollamaModelName = bindGeneralField<string>(
-		"ollamaModelName",
-		() => gitConfigService.get(GitAIConfigKey.OllamaModelName) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.OllamaModelName, v),
-	);
+		// Ensure reactive declarations have finished running before we set initialized to true
+		await tick();
 
-	const lmStudioEndpoint = bindGeneralField<string>(
-		"lmStudioEndpoint",
-		() => gitConfigService.get(GitAIConfigKey.LMStudioEndpoint) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.LMStudioEndpoint, v),
-	);
-
-	const lmStudioModelName = bindGeneralField<string>(
-		"lmStudioModelName",
-		() => gitConfigService.get(GitAIConfigKey.LMStudioModelName) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.LMStudioModelName, v),
-	);
-
-	const openRouterKey = bindGeneralField<string>(
-		"openRouterKey",
-		() => secretsService.get(AISecretHandle.OpenRouterKey) || "",
-		(v) => secretsService.set(AISecretHandle.OpenRouterKey, v),
-	);
-
-	const openRouterModelName = bindGeneralField<string>(
-		"openRouterModelName",
-		() => gitConfigService.get(GitAIConfigKey.OpenRouterModelName) || "",
-		(v) => gitConfigService.set(GitAIConfigKey.OpenRouterModelName, v),
-	);
+		initialized = true;
+	});
 
 	const keyOptions = [
-		{ label: "Use GitButler API", value: KeyOption.ButlerAPI },
-		{ label: "Your own key", value: KeyOption.BringYourOwn },
+		{
+			label: "Use GitButler API",
+			value: KeyOption.ButlerAPI,
+		},
+		{
+			label: "Your own key",
+			value: KeyOption.BringYourOwn,
+		},
 	];
 
 	const openAIModelOptions = [
-		{ label: "GPT 5.4", value: OpenAIModelName.GPT54 },
-		{ label: "GPT 5.4 Mini", value: OpenAIModelName.GPT54Mini },
-		{ label: "GPT 5.4 Nano (recommended)", value: OpenAIModelName.GPT54Nano },
+		{
+			label: "GPT 5.4",
+			value: OpenAIModelName.GPT54,
+		},
+		{
+			label: "GPT 5.4 Mini",
+			value: OpenAIModelName.GPT54Mini,
+		},
+		{
+			label: "GPT 5.4 Nano (recommended)",
+			value: OpenAIModelName.GPT54Nano,
+		},
 	];
 
 	const anthropicModelOptions = [
-		{ label: "Haiku (recommended)", value: AnthropicModelName.Haiku },
-		{ label: "Sonnet", value: AnthropicModelName.Sonnet },
-		{ label: "Opus", value: AnthropicModelName.Opus },
+		{
+			label: "Haiku (recommended)",
+			value: AnthropicModelName.Haiku,
+		},
+		{
+			label: "Sonnet",
+			value: AnthropicModelName.Sonnet,
+		},
+		{
+			label: "Opus",
+			value: AnthropicModelName.Opus,
+		},
 	];
 
-	function onFormChange(formEl: HTMLFormElement) {
-		const formData = new FormData(formEl);
-		const newModelKind = formData.get("modelKind") as ModelKind;
-		aiModelKind.set(newModelKind);
+	let form = $state<HTMLFormElement>();
+
+	function onFormChange(form: HTMLFormElement) {
+		const formData = new FormData(form);
+		modelKind = formData.get("modelKind") as ModelKind;
 	}
+	run(() => {
+		setConfiguration(GitAIConfigKey.ModelProvider, modelKind);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OpenAIKeyOption, openAIKeyOption);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OpenAIModelName, openAIModelName);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OpenAICustomEndpoint, openAICustomEndpoint);
+	});
+	run(() => {
+		setSecret(AISecretHandle.OpenAIKey, openAIKey);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.AnthropicKeyOption, anthropicKeyOption);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.AnthropicModelName, anthropicModelName);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.DiffLengthLimit, diffLengthLimit?.toString());
+	});
+	run(() => {
+		setSecret(AISecretHandle.AnthropicKey, anthropicKey);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OllamaEndpoint, ollamaEndpoint);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OllamaModelName, ollamaModel);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.LMStudioEndpoint, lmStudioEndpoint);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.LMStudioModelName, lmStudioModel);
+	});
+	run(() => {
+		setSecret(AISecretHandle.OpenRouterKey, openRouterKey);
+	});
+	run(() => {
+		setConfiguration(GitAIConfigKey.OpenRouterModelName, openRouterModel);
+	});
+	run(() => {
+		if (form) form.modelKind.value = modelKind;
+	});
 </script>
 
 {#snippet shortNote(text: string)}
@@ -172,32 +195,34 @@
 </p>
 
 <CardGroup>
-	<form class="git-radio" onchange={(e) => onFormChange(e.currentTarget)}>
+	<form class="git-radio" bind:this={form} onchange={(e) => onFormChange(e.currentTarget)}>
 		<CardGroup.Item labelFor="open-ai">
 			{#snippet title()}
 				Open AI
 			{/snippet}
 			{#snippet actions()}
-				<RadioButton name="modelKind" id="open-ai" value={ModelKind.OpenAI} checked={aiModelKind.current === ModelKind.OpenAI} />
+				<RadioButton name="modelKind" id="open-ai" value={ModelKind.OpenAI} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if aiModelKind.current === ModelKind.OpenAI}
+		{#if modelKind === ModelKind.OpenAI}
 			<CardGroup.Item>
 				<Select
-					value={openAIKeyOption.current}
+					value={openAIKeyOption}
 					options={keyOptions}
 					wide
 					label="Do you want to provide your own key?"
-					onselect={(v) => openAIKeyOption.set(v as KeyOption)}
+					onselect={(value) => {
+						openAIKeyOption = value as KeyOption;
+					}}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
-						<SelectItem selected={item.value === openAIKeyOption.current} {highlighted}>
+						<SelectItem selected={item.value === openAIKeyOption} {highlighted}>
 							{item.label}
 						</SelectItem>
 					{/snippet}
 				</Select>
 
-				{#if openAIKeyOption.current === KeyOption.ButlerAPI}
+				{#if openAIKeyOption === KeyOption.ButlerAPI}
 					{#if !userService.user}
 						<AuthorizationBanner message="Please sign in to use the GitButler API." />
 					{:else}
@@ -205,25 +230,26 @@
 					{/if}
 				{/if}
 
-				{#if openAIKeyOption.current === KeyOption.BringYourOwn}
+				{#if openAIKeyOption === KeyOption.BringYourOwn}
 					<Textbox
 						label="API key"
 						type="password"
-						value={openAIKey.current}
+						bind:value={openAIKey}
 						required
 						placeholder="sk-..."
-						onchange={(v) => openAIKey.set(v)}
 					/>
 
 					<Select
-						value={openAIModelName.current}
+						value={openAIModelName}
 						options={openAIModelOptions}
 						label="Model version"
 						wide
-						onselect={(v) => openAIModelName.set(v as OpenAIModelName)}
+						onselect={(value) => {
+							openAIModelName = value as OpenAIModelName;
+						}}
 					>
 						{#snippet itemSnippet({ item, highlighted })}
-							<SelectItem selected={item.value === openAIModelName.current} {highlighted}>
+							<SelectItem selected={item.value === openAIModelName} {highlighted}>
 								{item.label}
 							</SelectItem>
 						{/snippet}
@@ -231,9 +257,8 @@
 
 					<Textbox
 						label="Custom endpoint"
-						value={openAICustomEndpoint.current}
+						bind:value={openAICustomEndpoint}
 						placeholder="https://api.openai.com/v1"
-						onchange={(v) => openAICustomEndpoint.set(v)}
 					/>
 				{/if}
 			</CardGroup.Item>
@@ -244,51 +269,56 @@
 				Anthropic
 			{/snippet}
 			{#snippet actions()}
-				<RadioButton name="modelKind" id="anthropic" value={ModelKind.Anthropic} checked={aiModelKind.current === ModelKind.Anthropic} />
+				<RadioButton name="modelKind" id="anthropic" value={ModelKind.Anthropic} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if aiModelKind.current === ModelKind.Anthropic}
+		{#if modelKind === ModelKind.Anthropic}
 			<CardGroup.Item>
 				<Select
-					value={anthropicKeyOption.current}
+					value={anthropicKeyOption}
 					options={keyOptions}
 					wide
 					label="Do you want to provide your own key?"
-					onselect={(v) => anthropicKeyOption.set(v as KeyOption)}
+					onselect={(value) => {
+						anthropicKeyOption = value as KeyOption;
+					}}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
-						<SelectItem selected={item.value === anthropicKeyOption.current} {highlighted}>
+						<SelectItem selected={item.value === anthropicKeyOption} {highlighted}>
 							{item.label}
 						</SelectItem>
 					{/snippet}
 				</Select>
 
-				{#if anthropicKeyOption.current === KeyOption.ButlerAPI}
+				{#if anthropicKeyOption === KeyOption.ButlerAPI}
 					{#if !userService.user}
 						<AuthorizationBanner message="Please sign in to use the GitButler API." />
 					{:else}
-						{@render shortNote("GitButler uses Anthropic API for commit messages and branch names.")}
+						{@render shortNote(
+							"GitButler uses Anthropic API for commit messages and branch names.",
+						)}
 					{/if}
 				{/if}
 
-				{#if anthropicKeyOption.current === KeyOption.BringYourOwn}
+				{#if anthropicKeyOption === KeyOption.BringYourOwn}
 					<Textbox
 						label="API key"
 						type="password"
-						value={anthropicKey.current}
+						bind:value={anthropicKey}
 						required
 						placeholder="sk-ant-api03-..."
-						onchange={(v) => anthropicKey.set(v)}
 					/>
 
 					<Select
-						value={anthropicModelName.current}
+						value={anthropicModelName}
 						options={anthropicModelOptions}
 						label="Model version"
-						onselect={(v) => anthropicModelName.set(v as AnthropicModelName)}
+						onselect={(value) => {
+							anthropicModelName = value as AnthropicModelName;
+						}}
 					>
 						{#snippet itemSnippet({ item, highlighted })}
-							<SelectItem selected={item.value === anthropicModelName.current} {highlighted}>
+							<SelectItem selected={item.value === anthropicModelName} {highlighted}>
 								{item.label}
 							</SelectItem>
 						{/snippet}
@@ -302,31 +332,27 @@
 				Ollama 🦙
 			{/snippet}
 			{#snippet actions()}
-				<RadioButton name="modelKind" id="ollama" value={ModelKind.Ollama} checked={aiModelKind.current === ModelKind.Ollama} />
+				<RadioButton name="modelKind" id="ollama" value={ModelKind.Ollama} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if aiModelKind.current === ModelKind.Ollama}
+		{#if modelKind === ModelKind.Ollama}
 			<CardGroup.Item>
 				<Textbox
 					label="Endpoint"
-					value={ollamaEndpoint.current}
+					bind:value={ollamaEndpoint}
 					placeholder="http://127.0.0.1:11434"
-					onchange={(v) => ollamaEndpoint.set(v)}
 				/>
-				<Textbox
-					label="Model"
-					value={ollamaModelName.current}
-					placeholder="llama3"
-					onchange={(v) => ollamaModelName.set(v)}
-				/>
+				<Textbox label="Model" bind:value={ollamaModel} placeholder="llama3" />
 				<InfoMessage filled outlined={false}>
 					{#snippet title()}
 						Configuring Ollama
 					{/snippet}
 					{#snippet content()}
-						To connect to your Ollama endpoint, <b>allow-list it in the app's CSP settings</b>.
+						To connect to your Ollama endpoint, <b>allow-list it in the app’s CSP settings</b>.
 						<br />
-						See the <Link href="https://docs.gitbutler.com/troubleshooting/custom-csp">docs for details</Link>
+						See the <Link href="https://docs.gitbutler.com/troubleshooting/custom-csp"
+							>docs for details</Link
+						>
 					{/snippet}
 				</InfoMessage>
 			</CardGroup.Item>
@@ -337,23 +363,43 @@
 				LM Studio
 			{/snippet}
 			{#snippet actions()}
-				<RadioButton name="modelKind" id="lmstudio" value={ModelKind.LMStudio} checked={aiModelKind.current === ModelKind.LMStudio} />
+				<RadioButton name="modelKind" id="lmstudio" value={ModelKind.LMStudio} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if aiModelKind.current === ModelKind.LMStudio}
+		{#if modelKind === ModelKind.LMStudio}
 			<CardGroup.Item>
 				<Textbox
 					label="Endpoint"
-					value={lmStudioEndpoint.current}
+					bind:value={lmStudioEndpoint}
 					placeholder="http://127.0.0.1:1234"
-					onchange={(v) => lmStudioEndpoint.set(v)}
 				/>
-				<Textbox
-					label="Model"
-					value={lmStudioModelName.current}
-					placeholder="model-name"
-					onchange={(v) => lmStudioModelName.set(v)}
-				/>
+				<Textbox label="Model" bind:value={lmStudioModel} placeholder="default" />
+				<InfoMessage filled outlined={false}>
+					{#snippet title()}
+						Configuring LM Studio
+					{/snippet}
+					{#snippet content()}
+						<div class="ai-settings__section-text-block">
+							<p>Connecting to your LM Studio endpoint requires that you do two things:</p>
+
+							<p>
+								1. <span class="text-bold"
+									>Allow-list it in the CSP settings for the application</span
+								>. You can find more details on how to do that in the <Link
+									href="https://docs.gitbutler.com/troubleshooting/custom-csp">GitButler docs</Link
+								>.
+							</p>
+
+							<p>
+								2. <span class="text-bold">Enable CORS support in LM Studio</span>. You can find
+								more details on how to do that in the <Link
+									href="https://lmstudio.ai/docs/cli/server-start#enable-cors-support"
+									>LM Studio docs</Link
+								>.
+							</p>
+						</div>
+					{/snippet}
+				</InfoMessage>
 			</CardGroup.Item>
 		{/if}
 
@@ -362,78 +408,96 @@
 				OpenRouter
 			{/snippet}
 			{#snippet actions()}
-				<RadioButton name="modelKind" id="openrouter" value={ModelKind.OpenRouter} checked={aiModelKind.current === ModelKind.OpenRouter} />
+				<RadioButton name="modelKind" id="openrouter" value={ModelKind.OpenRouter} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if aiModelKind.current === ModelKind.OpenRouter}
+		{#if modelKind === ModelKind.OpenRouter}
 			<CardGroup.Item>
 				<Textbox
 					label="API key"
 					type="password"
-					value={openRouterKey.current}
+					bind:value={openRouterKey}
 					required
 					placeholder="sk-or-..."
-					onchange={(v) => openRouterKey.set(v)}
 				/>
-				<Textbox
-					label="Model"
-					value={openRouterModelName.current}
-					placeholder="anthropic/claude-3.5-sonnet"
-					onchange={(v) => openRouterModelName.set(v)}
-				/>
+
+				<Textbox label="Model" bind:value={openRouterModel} placeholder="openai/gpt-4.1-mini" />
 			</CardGroup.Item>
 		{/if}
+
+		<CardGroup.Item>
+			<AiCredentialCheck />
+		</CardGroup.Item>
 	</form>
 </CardGroup>
 
 <Spacer />
 
-<CardGroup>
-	<CardGroup.Item alignment="center">
-		{#snippet title()}
-			Diff character limit
-		{/snippet}
-		{#snippet caption()}
-			Max number of characters to send in the diff for AI commit generation.
-		{/snippet}
-		{#snippet actions()}
-			<Textbox
-				type="number"
-				width={120}
-				textAlign="center"
-				value={diffLengthLimit.current.toString()}
-				minVal={1000}
-				maxVal={100000}
-				onchange={(v) => diffLengthLimit.set(parseInt(v) || 10000)}
-			/>
-		{/snippet}
-	</CardGroup.Item>
-</CardGroup>
-
-<Spacer />
-
-<AiCredentialCheck />
+<CardGroup.Item standalone>
+	{#snippet title()}
+		Amount of provided context
+	{/snippet}
+	{#snippet caption()}
+		How many characters of your git diff should be provided to AI
+	{/snippet}
+	{#snippet actions()}
+		<Textbox
+			type="number"
+			width={80}
+			textAlign="center"
+			value={diffLengthLimit?.toString()}
+			minVal={100}
+			oninput={(value: string) => {
+				diffLengthLimit = parseInt(value);
+			}}
+			placeholder="5000"
+		/>
+	{/snippet}
+</CardGroup.Item>
 
 <Spacer />
 
 <SettingsSection>
-	{#snippet description()}
-		Prompts
+	{#snippet title()}
+		Custom AI prompts
 	{/snippet}
-	<AIPromptEdit />
+	{#snippet description()}
+		GitButler's AI assistant generates commit messages and branch names. Use default prompts or
+		create your own. Assign prompts in the project settings.
+	{/snippet}
+
+	<div class="prompt-groups">
+		<AIPromptEdit promptUse="commits" />
+		<Spacer margin={12} />
+		<AIPromptEdit promptUse="branches" />
+	</div>
 </SettingsSection>
 
-<style lang="postcss">
+<style>
 	.ai-settings__about-text {
-		margin-bottom: 16px;
+		margin-bottom: 12px;
 		color: var(--text-2);
+	}
+
+	.prompt-groups {
+		display: flex;
+		flex-direction: column;
+		margin-top: 16px;
+		gap: 12px;
 	}
 
 	.ai-settings__short-note {
 		display: flex;
 		align-items: center;
+		padding: 6px 10px;
 		gap: 8px;
-		padding: 8px 0;
+		border-radius: var(--radius-m);
+		background-color: var(--bg-2);
 		color: var(--text-2);
+	}
+
+	.ai-settings__section-text-block {
+		display: flex;
+		flex-direction: column;
 	}
 </style>

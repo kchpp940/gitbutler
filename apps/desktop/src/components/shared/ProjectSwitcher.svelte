@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
-	import { handleAddProjectOutcome } from "$lib/project/project";
+	import { handleAddProjectOutcome, handleProjectCommandError } from "$lib/project/project";
+	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { projectPath } from "$lib/routes/routes.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -58,7 +59,35 @@
 								newProjectLoading = false;
 								return;
 							}
-							handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+							if (outcome.type === "added" || outcome.type === "alreadyExists") {
+								handleAddProjectOutcome(outcome, (project) =>
+									goto(projectPath(project.id)),
+								);
+							} else {
+								PROJECT_ERROR_STORE.addOutcomeError(outcome, {
+									retry: () =>
+										projectsService
+											.addProject()
+											.then((o) => {
+												if (o && (o.type === "added" || o.type === "alreadyExists")) {
+													handleAddProjectOutcome(o, (p) => goto(projectPath(p.id)));
+												}
+											})
+											.catch((e) => handleProjectCommandError(e)),
+								});
+							}
+						} catch (e: unknown) {
+							handleProjectCommandError(e, {
+								retry: () =>
+									projectsService
+										.addProject()
+										.then((o) => {
+											if (o && (o.type === "added" || o.type === "alreadyExists")) {
+												handleAddProjectOutcome(o, (p) => goto(projectPath(p.id)));
+											}
+										})
+										.catch((err) => handleProjectCommandError(err)),
+							});
 						} finally {
 							newProjectLoading = false;
 						}

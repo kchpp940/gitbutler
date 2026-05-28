@@ -5,59 +5,15 @@
 		stagingBehaviorFeature,
 		type StagingBehavior,
 	} from "$lib/config/uiFeatureFlags";
-	import { bindGeneralField } from "$lib/settings/settingsDraft";
+	import { persisted } from "@gitbutler/shared/persisted";
 	import { CardGroup, RadioButton, Toggle, Spacer } from "@gitbutler/ui";
 
-	const addToLeftmost = bindGeneralField<boolean>(
-		"branchPlacementLeftmost",
-		() => {
-			let v: any;
-			import("$lib/config/uiFeatureFlags").then((m) => {
-				const store = m.stagingBehaviorFeature;
-				store.subscribe((val: any) => (v = val))();
-			});
-			return v ?? false;
-		},
-		(v) => {
-			import("$lib/config/uiFeatureFlags").then((m) => m.stagingBehaviorFeature.set(v));
-		},
-	);
-
-	const autoSelectCreation = bindGeneralField<boolean>(
-		"autoSelectBranchCreation",
-		() => {
-			let v: any;
-			autoSelectBranchCreationFeature.subscribe((val: any) => (v = val))();
-			return v ?? false;
-		},
-		(v) => autoSelectBranchCreationFeature.set(v),
-	);
-
-	const autoSelectRename = bindGeneralField<boolean>(
-		"autoSelectBranchName",
-		() => {
-			let v: any;
-			autoSelectBranchNameFeature.subscribe((val: any) => (v = val))();
-			return v ?? false;
-		},
-		(v) => autoSelectBranchNameFeature.set(v),
-	);
-
-	const stagingBehavior = bindGeneralField<StagingBehavior>(
-		"stagingBehavior",
-		() => {
-			let v: any;
-			stagingBehaviorFeature.subscribe((val: any) => (v = val))();
-			return v ?? "all";
-		},
-		(v) => stagingBehaviorFeature.set(v),
-	);
-
+	const addToLeftmost = persisted<boolean>(false, "branch-placement-leftmost");
 	function onStagingBehaviorFormChange(form: HTMLFormElement) {
 		const formData = new FormData(form);
 		const selectedStagingBehavior = formData.get("stagingBehaviorType") as StagingBehavior | null;
 		if (!selectedStagingBehavior) return;
-		stagingBehavior.set(selectedStagingBehavior);
+		stagingBehaviorFeature.set(selectedStagingBehavior);
 	}
 </script>
 
@@ -72,8 +28,8 @@
 	{#snippet actions()}
 		<Toggle
 			id="add-leftmost"
-			checked={addToLeftmost.current}
-			onclick={() => addToLeftmost.set(!addToLeftmost.current)}
+			checked={$addToLeftmost}
+			onclick={() => ($addToLeftmost = !$addToLeftmost)}
 		/>
 	{/snippet}
 </CardGroup.Item>
@@ -90,8 +46,8 @@
 		{#snippet actions()}
 			<Toggle
 				id="auto-select-creation"
-				checked={autoSelectCreation.current}
-				onclick={() => autoSelectCreation.set(!autoSelectCreation.current)}
+				checked={$autoSelectBranchCreationFeature}
+				onclick={() => ($autoSelectBranchCreationFeature = !$autoSelectBranchCreationFeature)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -106,8 +62,8 @@
 		{#snippet actions()}
 			<Toggle
 				id="auto-select-rename"
-				checked={autoSelectRename.current}
-				onclick={() => autoSelectRename.set(!autoSelectRename.current)}
+				checked={$autoSelectBranchNameFeature}
+				onclick={() => ($autoSelectBranchNameFeature = !$autoSelectBranchNameFeature)}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -139,7 +95,7 @@
 					name="stagingBehaviorType"
 					value="all"
 					id="stage-all"
-					checked={stagingBehavior.current === "all"}
+					checked={$stagingBehaviorFeature === "all"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -157,7 +113,7 @@
 					name="stagingBehaviorType"
 					value="selection"
 					id="stage-selection"
-					checked={stagingBehavior.current === "selection"}
+					checked={$stagingBehaviorFeature === "selection"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -174,7 +130,7 @@
 					name="stagingBehaviorType"
 					value="none"
 					id="stage-none"
-					checked={stagingBehavior.current === "none"}
+					checked={$stagingBehaviorFeature === "none"}
 				/>
 			{/snippet}
 		</CardGroup.Item>

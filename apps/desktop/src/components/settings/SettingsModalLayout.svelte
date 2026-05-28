@@ -9,9 +9,9 @@
 	};
 </script>
 
-<script lang="ts">
+<script lang="ts" generics="T extends Page">
 	import AppScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
-	import { Icon, Button, type IconName } from "@gitbutler/ui";
+	import { Icon, type IconName } from "@gitbutler/ui";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
 	import { type Snippet } from "svelte";
 
@@ -25,13 +25,9 @@
 		onSelectPage: (pageId: PageId) => void;
 		content: Snippet<[{ currentPage: Page | undefined }]>;
 		footer?: Snippet;
-		isDirty?: boolean;
-		isSaving?: boolean;
-		onSave?: () => Promise<void>;
-		onCancel?: () => void;
 	};
 
-	const { title, pages, selectedId, isAdmin, onSelectPage, content, footer, isDirty, isSaving, onSave, onCancel }: Props = $props();
+	const { title, pages, selectedId, isAdmin, onSelectPage, content, footer }: Props = $props();
 
 	let currentSelectedId = $derived(selectedId || pages[0]?.id || "");
 	const currentPage = $derived(pages.find((p) => p.id === currentSelectedId));
@@ -71,23 +67,10 @@
 			</div>
 
 			{#if footer}
-			<div class="settings-sidebar__footer">
-				{@render footer()}
-			</div>
-		{/if}
-		{#if onSave && onCancel}
-			<div class="settings-sidebar__actions">
-				{#if isDirty}
-					<span class="dirty-indicator text-12 text-warning">
-						<Icon name="dot" /> Unsaved changes
-					</span>
-				{/if}
-				<div class="settings-sidebar__buttons">
-					<Button kind="outline" onclick={onCancel} disabled={isSaving}>Cancel</Button>
-					<Button style="pop" onclick={onSave} loading={isSaving} disabled={!isDirty && !isSaving}>Save</Button>
+				<div class="settings-sidebar__footer">
+					{@render footer()}
 				</div>
-			</div>
-		{/if}
+			{/if}
 		</div>
 	</div>
 
@@ -196,29 +179,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
-	}
-
-	.settings-sidebar__actions {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding-top: 12px;
-		border-top: 1px solid var(--border-2);
-	}
-
-	.dirty-indicator {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.settings-sidebar__buttons {
-		display: flex;
-		gap: 8px;
-	}
-
-	.settings-sidebar__buttons :global(.btn) {
-		flex: 1;
 	}
 
 	/* PAGE VIEW */

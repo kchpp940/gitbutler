@@ -9,27 +9,15 @@
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Spacer, Toggle } from "@gitbutler/ui";
 	import type { Project } from "$lib/project/project";
-	import { bindProjectField } from "$lib/settings/settingsDraft";
 
 	const { projectId }: { projectId: string } = $props();
 	const projectsService = inject(PROJECTS_SERVICE);
 	const projectQuery = $derived(projectsService.getProject(projectId));
 	const backend = inject(BACKEND);
 
-	const forcePushProtection = bindProjectField<boolean>(
-		"forcePushProtection",
-		() => {
-			let v: boolean = false;
-			projectQuery.result?.response?.force_push_protection ?? false;
-			return v;
-		},
-		async (v: boolean) => {
-			const project = projectQuery.result?.response;
-			if (project) {
-				await projectsService.updateProject({ ...project, force_push_protection: v });
-			}
-		},
-	);
+	async function onForcePushProtectionClick(project: Project, value: boolean) {
+		await projectsService.updateProject({ ...project, force_push_protection: value });
+	}
 </script>
 
 <SettingsSection>
@@ -55,8 +43,8 @@
 					{#snippet actions()}
 						<Toggle
 							id="forcePushProtection"
-							checked={forcePushProtection.current}
-							onchange={(checked) => forcePushProtection.set(checked)}
+							checked={project.force_push_protection}
+							onchange={(checked) => onForcePushProtectionClick(project, checked)}
 						/>
 					{/snippet}
 				</CardGroup.Item>

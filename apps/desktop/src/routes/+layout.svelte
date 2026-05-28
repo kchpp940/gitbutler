@@ -21,6 +21,8 @@
 	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
 	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import ProjectErrorCard from "$components/shared/ProjectErrorCard.svelte";
+	import { PROJECT_ERROR_STORE } from "$lib/project/projectErrorStore";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { TERMINAL_SERVICE } from "$lib/settings/terminalService";
 	import { createKeybind } from "$lib/shortcuts/hotkeys";
@@ -185,6 +187,13 @@
 </svelte:head>
 
 <div class="app-root" role="application" oncontextmenu={(e) => !dev && e.preventDefault()}>
+	{#if PROJECT_ERROR_STORE.errors.length > 0}
+		<div class="global-error-cards">
+			{#each PROJECT_ERROR_STORE.errors as entry}
+				<ProjectErrorCard {entry} />
+			{/each}
+		</div>
+	{/if}
 	{@render children()}
 </div>
 <ShareIssueModal />
@@ -209,5 +218,19 @@
 		display: flex;
 		height: 100%;
 		cursor: default;
+	}
+	.global-error-cards {
+		position: absolute;
+		top: 14px;
+		left: 14px;
+		right: 14px;
+		z-index: 1000;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		pointer-events: none;
+	}
+	.global-error-cards > * {
+		pointer-events: auto;
 	}
 </style>
