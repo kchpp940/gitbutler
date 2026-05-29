@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
+	import { page } from "$app/stores";
 	import IrcChatWindow from "$components/irc/IrcChatWindow.svelte";
 	import ProjectSettingsShortcutHandler from "$components/settings/ProjectSettingsShortcutHandler.svelte";
 	import AnalyticsMonitor from "$components/shared/AnalyticsMonitor.svelte";
@@ -28,7 +29,7 @@
 	import { MODE_SERVICE } from "$lib/mode/modeService";
 	import { showInfo, showWarning } from "$lib/notifications/toasts";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { HEALTH_CHECK_SERVICE } from "$lib/project/healthCheckService.svelte";
+	import { PROJECT_UI_STATE_SERVICE, type ProjectUiStateService } from "$lib/project/projectUiStateService.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
@@ -58,7 +59,7 @@
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settingsStore = settingsService.appSettings;
 	const projectsService = inject(PROJECTS_SERVICE);
-	const healthCheckService = inject(HEALTH_CHECK_SERVICE);
+	const projectUiStateService: ProjectUiStateService = inject(PROJECT_UI_STATE_SERVICE);
 	const clientState = inject(CLIENT_STATE);
 
 	// Project data
@@ -201,6 +202,14 @@
 			untrack(() => {
 				idSelection.retain(affectedPaths);
 			});
+		}
+	});
+
+	// Consume pending settings and route restores after data is loaded
+	$effect(() => {
+		if (worktreeData) {
+			projectUiStateService.consumeSettingsRestore();
+			projectUiStateService.consumeRouteRestore(projectId);
 		}
 	});
 
@@ -363,12 +372,30 @@
 
 	// Set active project and handle notifications
 	async function setActiveProjectOrRedirect(projectId: string) {
+		const currentScene = projectUiStateService.getScene();
+		const sceneProjectId = projectUiStateService.getSceneProjectId();
+
+		if (currentScene !== "idle" && sceneProjectId === projectId) {
+			// 已经在切换这个项目的过程中，跳过重复处理
+		} else {
+			// 直接路由进入或刷新，初始加载场景
+			projectUiStateService.beginScene("initial-load", projectId);
+		}
+
+		const previousProjectId = projectUiStateService.getActiveProject();
+		// user-switching 场景下，switchToProject 已经调用 saveBeforeSwitch 保存过了
+		if (
+			previousProjectId &&
+			previousProjectId !== projectId &&
+			currentScene !== "user-switching"
+		) {
+			await projectUiStateService.saveState(previousProjectId);
+		}
+
 		const dontShowAgainKey = `git-filters--dont-show-again--${projectId}`;
 		try {
 			const info = await projectsService.setActiveProject(projectId);
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActive);
-
-			healthCheckService.fetchReport(projectId).catch(() => {});
 
 			if (!info) return;
 
@@ -392,6 +419,8 @@
 					},
 				});
 			}
+
+			await projectUiStateService.restoreState(projectId);
 		} catch (error: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActiveFailed);
 			showError("Failed to set the project active", error);
@@ -445,9 +474,42 @@
 		};
 	});
 
+	// =============================================================================
+	// UI STATE AUTO-SAVE
+	// =============================================================================
+
+	let saveTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	function scheduleAutoSave() {
+		if (saveTimeout) clearTimeout(saveTimeout);
+		saveTimeout = setTimeout(async () => {
+			if (projectId) {
+				await projectUiStateService.saveStateDebounced(projectId);
+			}
+		}, 500);
+	}
+
+	$effect(() => {
+		const unsubscribe = page.subscribe(() => {
+			if (projectId) {
+				scheduleAutoSave();
+			}
+		});
+		return () => {
+			unsubscribe();
+			if (saveTimeout) clearTimeout(saveTimeout);
+		};
+	});
+
 	// Cleanup on destroy
 	onDestroy(() => {
 		clearFetchInterval();
+		if (saveTimeout) clearTimeout(saveTimeout);
+		if (projectId) {
+			projectUiStateService.saveState(projectId).catch((e) => {
+				console.error("Failed to save UI state on destroy:", e);
+			});
+		}
 	});
 </script>
 

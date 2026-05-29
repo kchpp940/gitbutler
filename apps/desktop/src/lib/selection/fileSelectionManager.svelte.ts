@@ -64,8 +64,14 @@ export class FileSelectionManager {
 				| undefined
 			>;
 			entries: SvelteSet<SelectedFileKey>;
+			/**
+			 * When true, skip the next autoselect attempt for this selection.
+			 * Set after a restore to prevent autoselect from overwriting restored selection.
+			 */
+			skipAutoselect: boolean;
 		}
 	>;
+	private dataVersions = new Map<string, number>();
 
 	constructor(
 		private stackService: StackServiceLike,
@@ -78,6 +84,7 @@ export class FileSelectionManager {
 		this.selections.set(selectionKey(createWorktreeSelection({ stackId: undefined })), {
 			entries: new SvelteSet<SelectedFileKey>(),
 			lastAdded: writable(),
+			skipAutoselect: false,
 		});
 	}
 
@@ -88,6 +95,7 @@ export class FileSelectionManager {
 			set = {
 				entries: new SvelteSet<SelectedFileKey>(),
 				lastAdded: writable(),
+				skipAutoselect: false,
 			};
 			this.selections.set(key, set);
 		}
@@ -272,6 +280,63 @@ export class FileSelectionManager {
 		for (const key of fileKey) {
 			this.remove(key.path, key);
 		}
+	}
+
+	captureSelection(selectionId: SelectionId): string[] {
+		return this.values(selectionId).map((f) => f.path);
+	}
+
+	restoreSelection(selectionId: SelectionId, paths: string[]): void {
+		const selection = this.getById(selectionId);
+		selection.entries.clear();
+		selection.lastAdded.set(undefined);
+		for (let i = 0; i < paths.length; i++) {
+			const selectedKey = key({ ...selectionId, path: paths[i]! });
+			selection.entries.add(selectedKey);
+			if (i === paths.length - 1) {
+				selection.lastAdded.set({ index: i, key: selectedKey });
+			}
+		}
+		selection.skipAutoselect = true;
+	}
+
+	private pendingFileRestores = new Map<string, { selectionId: SelectionId; paths: string[] }>();
+
+	enqueueFileRestore(selectionId: SelectionId, paths: string[]): void {
+		if (paths.length === 0) return;
+		const k = selectionKey(selectionId);
+		this.pendingFileRestores.set(k, { selectionId, paths });
+	}
+
+	consumePendingFileRestore(selectionId: SelectionId): void {
+		const k = selectionKey(selectionId);
+		const pending = this.pendingFileRestores.get(k);
+		if (!pending) return;
+		this.pendingFileRestores.delete(k);
+		this.restoreSelection(pending.selectionId, pending.paths);
+	}
+
+	hasPendingFileRestore(selectionId: SelectionId): boolean {
+		return this.pendingFileRestores.has(selectionKey(selectionId));
+	}
+
+	clearPendingFileRestores(): void {
+		this.pendingFileRestores.clear();
+	}
+
+	checkAndClearSkipAutoselect(selectionId: SelectionId): boolean {
+		const selection = this.getById(selectionId);
+		const shouldSkip = selection.skipAutoselect;
+		selection.skipAutoselect = false;
+		return shouldSkip;
+	}
+
+	setDataVersion(selectionId: SelectionId, version: number): void {
+		this.dataVersions.set(selectionKey(selectionId), version);
+	}
+
+	getDataVersion(selectionId: SelectionId): number {
+		return this.dataVersions.get(selectionKey(selectionId)) ?? 0;
 	}
 
 	changeByKey(projectId: string, selectedFile: SelectedFile) {

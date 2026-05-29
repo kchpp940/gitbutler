@@ -2,7 +2,6 @@
 	import { goto } from "$app/navigation";
 	import CreateBranchModal from "$components/branch/CreateBranchModal.svelte";
 	import SyncButton from "$components/forge/SyncButton.svelte";
-	import HealthCheckSummary from "$components/shared/HealthCheckSummary.svelte";
 	import IntegrateUpstreamModal from "$components/upstream/IntegrateUpstreamModal.svelte";
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
@@ -135,11 +134,11 @@
 				options={mappedProjects}
 				loading={newProjectLoading}
 				disabled={newProjectLoading}
-				onselect={(value: string, modifiers?) => {
+				onselect={async (value: string, modifiers?) => {
 					if (modifiers?.meta) {
 						projectsService.openProjectInNewWindow(value);
-					} else {
-						goto(projectPath(value));
+					} else if (projectId && value !== projectId) {
+						await projectsService.switchProject(projectId, value);
 					}
 				}}
 				ontoggle={(isOpen) => (projectSelectorOpen = isOpen)}
@@ -167,10 +166,7 @@
 
 				{#snippet itemSnippet({ item, highlighted })}
 					<SelectItem selected={item.value === projectId} {highlighted}>
-						<div class="project-list-item">
-							<span>{item.label}</span>
-							<HealthCheckSummary projectId={item.value} />
-						</div>
+						{item.label}
 					</SelectItem>
 				{/snippet}
 
@@ -190,7 +186,11 @@
 										return;
 									}
 
-									handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+									handleAddProjectOutcome(
+									outcome,
+									(project) => projectsService.switchToProject(project.id),
+									(projectId) => projectsService.switchToProject(projectId),
+								);
 								} finally {
 									newProjectLoading = false;
 								}
@@ -343,14 +343,6 @@
 	/** Mac padding added here to not affect header flex-box sizing, only applied when using custom title bar. */
 	.mac .chrome-left-buttons.has-traffic-lights {
 		padding-left: 70px;
-	}
-
-	.project-list-item {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: space-between;
-		flex: 1;
 	}
 
 	.chrome-you-are-up-to-date {

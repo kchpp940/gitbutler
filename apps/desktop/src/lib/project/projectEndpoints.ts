@@ -9,38 +9,32 @@ export type ProjectInfo = {
 	headsup?: string;
 };
 
-export type HealthCheckSeverity = "critical" | "warning" | "info";
-export type HealthCheckCategory =
-	| "repo_ownership"
-	| "permission"
-	| "remote"
-	| "lfs_filter"
-	| "database"
-	| "sync";
-
-export type HealthCheckFixAction =
-	| { type: "add_safe_directory"; path: string }
-	| { type: "refresh_base_branch" }
-	| { type: "invalidate_health_cache" }
-	| { type: "add_remote" }
-	| { type: "run_lfs_pull" };
-
-export type HealthCheckItem = {
-	id: string;
-	category: HealthCheckCategory;
-	severity: HealthCheckSeverity;
-	message: string;
-	fix_hint?: string;
-	fix_action?: HealthCheckFixAction;
-};
-
-export type ProjectHealthReport = {
-	items: HealthCheckItem[];
-};
-
 export type ServerCapabilities = {
 	isRemote: boolean;
 	canAddProjects: boolean;
+};
+
+export type PrPanelState = {
+	open: boolean;
+	prNumber: number | null;
+};
+
+export type SettingsPanelState = {
+	open: boolean;
+	pageId: string | null;
+};
+
+export type ProjectUiState = {
+	route: string;
+	selectedStackId: string | null;
+	selectedFiles: string[];
+	expandedDirectories: string[];
+	prPanel: PrPanelState;
+	settingsPanel: SettingsPanelState;
+	updatedAt: {
+		secsSinceEpoch: number;
+		nanosSinceEpoch: number;
+	};
 };
 
 export function buildProjectEndpoints(build: BackendEndpointBuilder) {
@@ -99,10 +93,13 @@ export function buildProjectEndpoints(build: BackendEndpointBuilder) {
 			extraOptions: { command: "oplog_diff_worktrees" },
 			query: (args) => args,
 		}),
-		projectHealthCheck: build.query<ProjectHealthReport, { projectId: string }>({
-			extraOptions: { command: "project_health_check" },
+		getProjectUiState: build.query<ProjectUiState | null, { projectId: string }>({
+			extraOptions: { command: "get_project_ui_state" },
 			query: (args) => args,
-			providesTags: (_result, _error, args) => providesItem(ReduxTag.ProjectHealth, args.projectId),
+		}),
+		setProjectUiState: build.mutation<void, { projectId: string; state: ProjectUiState }>({
+			extraOptions: { command: "set_project_ui_state" },
+			query: (args) => args,
 		}),
 	};
 }

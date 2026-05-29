@@ -2,9 +2,14 @@ import { goto } from "$app/navigation";
 import { showError } from "$lib/error/showError";
 import { showToast } from "$lib/notifications/toasts";
 import { handleAddProjectOutcome, type Project } from "$lib/project/project";
+import {
+	PROJECT_UI_STATE_SERVICE,
+	type ProjectUiStateService,
+	type SwitchScene,
+} from "$lib/project/projectUiStateService.svelte";
 import { projectPath } from "$lib/routes/routes.svelte";
 import { getCookie } from "$lib/utils/cookies";
-import { InjectionToken } from "@gitbutler/core/context";
+import { InjectionToken, inject } from "@gitbutler/core/context";
 import { persisted } from "@gitbutler/shared/persisted";
 import { chipToasts } from "@gitbutler/ui";
 import { get } from "svelte/store";
@@ -17,12 +22,15 @@ export const PROJECTS_SERVICE = new InjectionToken<ProjectsService>("ProjectsSer
 
 export class ProjectsService {
 	private persistedId = persisted<string | undefined>(undefined, "lastProject");
+	private projectUiStateService: ProjectUiStateService;
 
 	constructor(
 		private backendApi: BackendApi,
 		private homeDir: string | undefined,
 		private backend: IBackend,
-	) {}
+	) {
+		this.projectUiStateService = inject(PROJECT_UI_STATE_SERVICE);
+	}
 
 	projects() {
 		return this.backendApi.endpoints.listProjects.useQuery();
@@ -50,7 +58,42 @@ export class ProjectsService {
 	}
 
 	async setActiveProject(projectId: string): Promise<ProjectInfo | null> {
-		return await this.backendApi.endpoints.setProjectActive.mutate({ id: projectId });
+		const result = await this.backendApi.endpoints.setProjectActive.mutate({ id: projectId });
+		this.projectUiStateService.setActiveProject(projectId);
+		return result;
+	}
+
+	async saveProjectUiState(projectId: string): Promise<void> {
+		await this.projectUiStateService.saveState(projectId);
+	}
+
+	async restoreProjectUiState(projectId: string): Promise<void> {
+		await this.projectUiStateService.restoreState(projectId);
+	}
+
+	async switchProject(fromProjectId: string, toProjectId: string): Promise<void> {
+		await this.projectUiStateService.saveBeforeSwitch(fromProjectId, toProjectId);
+		this.setLastOpenedProject(toProjectId);
+		goto(projectPath(toProjectId));
+	}
+
+	async switchToProject(toProjectId: string): Promise<void> {
+		this.switchToProjectWithScene(toProjectId, "user-switching");
+	}
+
+	async switchToProjectWithScene(toProjectId: string, scene: SwitchScene): Promise<void> {
+		const fromProjectId = this.projectUiStateService.getActiveProject();
+		if (!this.projectUiStateService.beginScene(scene, toProjectId)) {
+			return;
+		}
+		if (fromProjectId && fromProjectId !== toProjectId) {
+			await this.switchProject(fromProjectId, toProjectId);
+		} else {
+			this.setLastOpenedProject(toProjectId);
+			if (scene === "initial-load") {
+				goto(projectPath(toProjectId));
+			}
+		}
 	}
 
 	async updateProject(project: Project & { unset_bool?: boolean; unset_forge_override?: boolean }) {
@@ -88,14 +131,6 @@ export class ProjectsService {
 			{ projectId, noValidation: true },
 			{ transform: (data) => data.gerrit_mode },
 		);
-	}
-
-	projectHealthCheck(projectId: string) {
-		return this.backendApi.endpoints.projectHealthCheck.useQuery({ projectId });
-	}
-
-	async fetchHealthCheck(projectId: string) {
-		return await this.backendApi.endpoints.projectHealthCheck.fetch({ projectId });
 	}
 
 	async promptForDirectory(): Promise<string | undefined> {
@@ -155,10 +190,14 @@ export class ProjectsService {
 			switch (outcome.type) {
 				case "added":
 				case "alreadyExists":
-					goto(projectPath(outcome.subject.id));
+					this.switchToProject(outcome.subject.id);
 					break;
 				default:
-					handleAddProjectOutcome(outcome);
+					handleAddProjectOutcome(
+						outcome,
+						(project) => this.switchToProject(project.id),
+						(projectId) => this.switchToProject(projectId),
+					);
 			}
 		}
 	}

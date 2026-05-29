@@ -1,7 +1,8 @@
 <script lang="ts">
 	import FileTreeFolder from "$components/files/FileTreeFolder.svelte";
 	import Self from "$components/files/FileTreeNode.svelte";
-	import { getAllChanges } from "$lib/files/filetreeV3";
+	import { getAllChanges, nodePath } from "$lib/files/filetreeV3";
+	import { FOLDER_EXPANDED_STORE } from "$lib/files/folderExpandedState.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { TestId } from "@gitbutler/ui";
@@ -40,17 +41,34 @@
 	}: Props = $props();
 
 	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const folderExpandedStore = inject(FOLDER_EXPANDED_STORE);
 
-	// Local state to track whether the folder is expanded
 	let isExpanded = $state<boolean>(true);
 
-	// Flag to suppress keyboard-nav selection when a mouse click is in progress
-	let mouseClickPending = false;
+	$effect(() => {
+		if (node.kind === "dir" && !isRoot) {
+			const key = nodePath(node);
+			const map = folderExpandedStore.forProject(projectId);
+			const stored = map.get(key);
+			if (stored !== undefined) {
+				isExpanded = stored;
+			}
+		}
+	});
 
-	// Handler for toggling the folder
+	function syncToStore() {
+		if (node.kind === "dir" && !isRoot) {
+			const key = nodePath(node);
+			folderExpandedStore.forProject(projectId).set(key, isExpanded);
+		}
+	}
+
 	function handleToggle() {
 		isExpanded = !isExpanded;
+		syncToStore();
 	}
+
+	let mouseClickPending = false;
 
 	// Selects all files nested under this folder node
 	function selectFolderContents(addToSelection = false) {

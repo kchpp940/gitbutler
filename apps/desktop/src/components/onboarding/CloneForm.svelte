@@ -90,7 +90,11 @@
 				throw new Error("Failed to add project after cloning.");
 			}
 
-			handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+			handleAddProjectOutcome(
+				outcome,
+				(project) => projectsService.switchToProject(project.id),
+				(projectId) => projectsService.switchToProject(projectId),
+			);
 		} catch (e) {
 			Sentry.captureException(e);
 			const errorMessage = getErrorMessage(e);

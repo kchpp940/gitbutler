@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import ProjectSetupTarget from "$components/onboarding/ProjectSetupTarget.svelte";
-	import HealthCheckBanner from "$components/views/HealthCheckBanner.svelte";
 	import IllustrationSplitLayout from "$components/shared/IllustrationSplitLayout.svelte";
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import newZenSvg from "$lib/assets/illustrations/new-zen.svg?raw";
@@ -52,7 +51,6 @@
 <IllustrationSplitLayout img={newZenSvg} testId={TestId.ProjectSetupPage}>
 	<ReduxResult {projectId} result={projectQuery.result}>
 		{#snippet children(project)}
-			<HealthCheckBanner {projectId} />
 			<ProjectSetupTarget
 				{projectId}
 				projectName={project.title}

@@ -27,7 +27,11 @@
 
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProject);
 			if (outcome) {
-				handleAddProjectOutcome(outcome);
+				handleAddProjectOutcome(
+					outcome,
+					(project) => projectsService.switchToProject(project.id),
+					(projectId) => projectsService.switchToProject(projectId),
+				);
 			}
 		} catch (e: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProjectFailed, e);

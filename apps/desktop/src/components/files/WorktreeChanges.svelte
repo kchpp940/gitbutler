@@ -11,6 +11,7 @@
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
 	import { IRC_API_SERVICE } from "$lib/irc/ircApiService";
 	import { WORKING_FILES_BROADCAST } from "$lib/irc/workingFilesBroadcast.svelte";
+	import { PROJECT_UI_STATE_SERVICE } from "$lib/project/projectUiStateService.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createWorktreeSelection } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
@@ -62,6 +63,7 @@
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const uiState = inject(UI_STATE);
 	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const projectUiStateService = inject(PROJECT_UI_STATE_SERVICE);
 	const ircApiService = injectOptional(IRC_API_SERVICE, undefined);
 	const workingFilesBroadcast = injectOptional(WORKING_FILES_BROADCAST, undefined);
 
@@ -86,6 +88,17 @@
 	);
 
 	const changes = $derived(uncommittedService.changesByStackId(stackId || null));
+	const dataVersion = $derived(uncommittedService.getDataVersion());
+	let lastConsumedVersion = $state(-1);
+
+	$effect(() => {
+		if (changes.current.length > 0 && idSelection.hasPendingFileRestore(selectionId)) {
+			if (dataVersion !== lastConsumedVersion) {
+				projectUiStateService.consumeFileSelectionRestore(selectionId);
+				lastConsumedVersion = dataVersion;
+			}
+		}
+	});
 
 	let listMode: "list" | "tree" = $state("list");
 

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
-	import HealthCheckSummary from "$components/shared/HealthCheckSummary.svelte";
 	import { handleAddProjectOutcome } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { projectPath } from "$lib/routes/routes.svelte";
@@ -16,6 +15,7 @@
 	const canAddProjects = $derived(serverCapabilitiesQuery.response?.canAddProjects ?? true);
 
 	let selectedId = $state<string | undefined>(untrack(() => projectId));
+	let isSwitching = $state(false);
 
 	const mappedProjects = $derived(
 		projectsQuery.response?.map((project) => ({
@@ -41,10 +41,7 @@
 	>
 		{#snippet itemSnippet({ item, highlighted })}
 			<SelectItem selected={item.value === selectedId} {highlighted}>
-				<div class="project-item">
-					<span>{item.label}</span>
-					<HealthCheckSummary projectId={item.value} />
-				</div>
+				{item.label}
 			</SelectItem>
 		{/snippet}
 
@@ -58,10 +55,15 @@
 						try {
 							const outcome = await projectsService.addProject();
 							if (!outcome) {
+								// User cancelled the project creation
 								newProjectLoading = false;
 								return;
 							}
-							handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+							handleAddProjectOutcome(
+								outcome,
+								(project) => projectsService.switchToProject(project.id),
+								(projectId) => projectsService.switchToProject(projectId),
+							);
 						} finally {
 							newProjectLoading = false;
 						}
@@ -90,9 +92,19 @@
 	<Button
 		style="pop"
 		icon="chevron-right"
-		disabled={selectedId === projectId}
-		onclick={() => {
-			if (selectedId) goto(projectPath(selectedId));
+		disabled={selectedId === projectId || isSwitching}
+		loading={isSwitching}
+		onclick={async () => {
+			if (selectedId && projectId && selectedId !== projectId) {
+				isSwitching = true;
+				try {
+					await projectsService.switchProject(projectId, selectedId);
+				} finally {
+					isSwitching = false;
+				}
+			} else if (selectedId) {
+				goto(projectPath(selectedId));
+			}
 		}}
 	>
 		Open project
@@ -105,13 +117,5 @@
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 10px;
-	}
-
-	.project-item {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: space-between;
-		flex: 1;
 	}
 </style>

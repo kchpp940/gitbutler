@@ -291,6 +291,45 @@ export class UiState {
 	 * <HunkDiff {...uiState.pick('tabSize', 'wrapText', 'diffFont')} />
 	 * ```
 	 */
+	captureSettingsState(): { open: boolean; pageId: string | null; type: "general" | "project" | null } {
+		const modal = this.global.modal.current;
+		if (!modal) return { open: false, pageId: null, type: null };
+		if (modal.type === "general-settings") {
+			return { open: true, pageId: modal.selectedId ?? null, type: "general" };
+		}
+		if (modal.type === "project-settings") {
+			return { open: true, pageId: modal.selectedId ?? null, type: "project" };
+		}
+		return { open: false, pageId: null, type: null };
+	}
+
+	restoreSettingsState(
+		state: { open: boolean; pageId: string | null; type: "general" | "project" | null },
+		projectId?: string,
+	): void {
+		if (!state.open || !state.pageId) return;
+		if (state.type === "project" && projectId) {
+			this.global.modal.set({
+				type: "project-settings",
+				projectId,
+				selectedId: state.pageId as ProjectSettingsPageId,
+			});
+		} else if (state.type === "general") {
+			this.global.modal.set({
+				type: "general-settings",
+				selectedId: state.pageId as GeneralSettingsPageId,
+			});
+		}
+	}
+
+	captureStackSelection(stackId: string): StackSelection | undefined {
+		return this.lane(stackId).selection.current;
+	}
+
+	restoreStackSelection(stackId: string, selection: StackSelection): void {
+		this.lane(stackId).selection.set(selection);
+	}
+
 	pick<K extends keyof GlobalUiState>(...keys: K[]): { [P in K]: GlobalUiState[P] } {
 		const result = {} as { [P in K]: GlobalUiState[P] };
 		for (const key of keys) {

@@ -1,14 +1,18 @@
 <script lang="ts">
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { abbreviateFolders, changesToFileTree, nodePath } from "$lib/files/filetreeV3";
+	import { FOLDER_EXPANDED_STORE } from "$lib/files/folderExpandedState.svelte";
 	import { isExecutableStatus } from "$lib/hunks/change";
+	import { PROJECT_UI_STATE_SERVICE } from "$lib/project/projectUiStateService.svelte";
+	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { FileListItem, FolderListItem } from "@gitbutler/ui";
-	import { SvelteMap } from "svelte/reactivity";
+	import { inject } from "@gitbutler/core/context";
 	import type { TreeNode } from "$lib/files/filetreeV3";
 	import type { TreeChange } from "@gitbutler/but-sdk";
 	import type { FocusableOptions } from "@gitbutler/ui/focus/focusTypes";
 
 	type Props = {
+		projectId: string;
 		changes: TreeChange[];
 		selectedIndex?: number;
 		visibleRange?: { start: number; end: number };
@@ -19,6 +23,7 @@
 	};
 
 	const {
+		projectId,
 		changes,
 		selectedIndex,
 		visibleRange,
@@ -28,10 +33,23 @@
 		onFileContextMenu,
 	}: Props = $props();
 
-	const tree = $derived(abbreviateFolders(changesToFileTree(changes)));
+	const folderExpandedStore = inject(FOLDER_EXPANDED_STORE);
+	const uncommittedService = inject(UNCOMMITTED_SERVICE);
+	const projectUiStateService = inject(PROJECT_UI_STATE_SERVICE);
+	const folderExpanded = $derived(folderExpandedStore.forProject(projectId));
 
-	// Track folder expanded state reactively, keyed by folder path
-	const folderExpanded = new SvelteMap<string, boolean>();
+	const tree = $derived(abbreviateFolders(changesToFileTree(changes)));
+	const dataVersion = $derived(uncommittedService.getDataVersion());
+	let lastConsumedVersion = $state(-1);
+
+	$effect(() => {
+		if (changes.length > 0 && folderExpandedStore.hasPendingRestore(projectId)) {
+			if (dataVersion !== lastConsumedVersion) {
+				projectUiStateService.consumeFolderExpandedRestore(projectId);
+				lastConsumedVersion = dataVersion;
+			}
+		}
+	});
 
 	function isFolderExpanded(path: string): boolean {
 		return folderExpanded.get(path) ?? true;

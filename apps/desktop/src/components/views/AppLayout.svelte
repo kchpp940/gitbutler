@@ -4,7 +4,6 @@
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import AppErrorFallback from "$components/views/AppErrorFallback.svelte";
 	import AppHeader from "$components/views/AppHeader.svelte";
-	import HealthCheckBanner from "$components/views/HealthCheckBanner.svelte";
 	import AppSidebar from "$components/views/AppSidebar.svelte";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { inject } from "@gitbutler/core/context";
@@ -25,7 +24,6 @@
 	{#snippet children(project, { projectId })}
 		<div class="chrome" use:focusable={{ vertical: true, activate: true }}>
 			<AppHeader {projectId} projectTitle={project.title} actionsDisabled={sidebarDisabled} />
-			<HealthCheckBanner {projectId} />
 			<div class="chrome-body" use:focusable>
 				<EnsureAuthorInfo {projectId} />
 				<AppSidebar {projectId} disabled={sidebarDisabled} />

@@ -29,7 +29,6 @@ export enum ReduxTag {
 	WorkspaceRules = "WorkspaceRules",
 	Project = "Project",
 	ProjectGerrit = "ProjectGerrit",
-	ProjectHealth = "ProjectHealth",
 	InitalEditListing = "InitialEditListing",
 	EditChangesSinceInitial = "EditChangesSinceInitial",
 	AuthorInfo = "AuthorInfo",

@@ -16,10 +16,12 @@
 	import SashLayer from "$components/shared/SashLayer.svelte";
 	import BranchesViewBranch from "$components/views/BranchesViewBranch.svelte";
 	import TargetCommitList from "$components/views/TargetCommitList.svelte";
+	import { BRANCHES_SELECTION_STORE, type BranchesSelection } from "$lib/branches/branchesSelectionStore.svelte";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
 	import { isParsedError } from "$lib/error/parser";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
+	import { PROJECT_UI_STATE_SERVICE } from "$lib/project/projectUiStateService.svelte";
 	import { workspacePath } from "$lib/routes/routes.svelte";
 	import { handleCreateBranchFromBranchOutcome } from "$lib/stacks/stack";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
@@ -37,17 +39,6 @@
 
 	const { projectId }: Props = $props();
 
-	type BranchesSelection =
-		| {
-				type: "branch";
-				branchName: string;
-				remote?: string;
-				stackId?: string;
-				commitId?: string;
-		  }
-		| { type: "pr"; prNumber: number }
-		| { type: "target"; commitId?: string };
-
 	const stackService = inject(STACK_SERVICE);
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);
 	const forge = inject(DEFAULT_FORGE_FACTORY);
@@ -55,6 +46,8 @@
 	const prService = $derived(forge.current.prService);
 	const prUnit = $derived(prService?.unit);
 	const branchService = inject(BRANCH_SERVICE);
+	const branchesSelectionStore = inject(BRANCHES_SELECTION_STORE);
+	const projectUiStateService = inject(PROJECT_UI_STATE_SERVICE);
 
 	const baseBranchQuery = $derived(baseBranchService.baseBranch(projectId));
 	const selectedOption = persisted<BranchFilterOption>(
@@ -62,7 +55,18 @@
 		`branches-selectedOption-${untrack(() => projectId)}`,
 	);
 
-	let selection = $state<BranchesSelection>({ type: "target" });
+	let selection = $state<BranchesSelection>(branchesSelectionStore.get(projectId));
+
+	$effect(() => {
+		branchesSelectionStore.set(projectId, selection);
+	});
+
+	$effect(() => {
+		if (branchesSelectionStore.hasPendingPrRestore(projectId)) {
+			projectUiStateService.consumePrRestore(projectId);
+			selection = branchesSelectionStore.get(projectId);
+		}
+	});
 
 	let branchColumn = $state<HTMLDivElement>();
 	let branchViewLeftEl = $state<HTMLDivElement>();

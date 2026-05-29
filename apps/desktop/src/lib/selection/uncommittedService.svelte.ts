@@ -52,6 +52,7 @@ export class UncommittedService {
 	/** The change selection slice of the full redux state. */
 	private state = $state.raw(uncommittedSlice.getInitialState());
 	private dispatch: AppDispatch;
+	private dataVersion = $state(0);
 
 	constructor(
 		clientState: ClientState,
@@ -68,6 +69,11 @@ export class UncommittedService {
 
 	updateData(args: { assignments: HunkAssignment[]; changes: TreeChange[] }) {
 		this.dispatch(uncommittedActions.update(args));
+		this.dataVersion++;
+	}
+
+	getDataVersion(): number {
+		return this.dataVersion;
 	}
 
 	clearHunkSelection(stackId?: string) {
