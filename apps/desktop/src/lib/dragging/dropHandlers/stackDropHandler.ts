@@ -1,3 +1,7 @@
+import {
+	ActivityTimelineService,
+	ACTIVITY_TIMELINE_SERVICE,
+} from "$lib/activity/activityTimelineService.svelte";
 import { changesToDiffSpec } from "$lib/commits/utils";
 import {
 	FileChangeDropData,
@@ -36,6 +40,7 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 		private readonly uncommittedService: UncommittedService,
 		private readonly diffService: DiffService,
 		private readonly baseBranchName: string | undefined,
+		private readonly activityTimelineService?: ActivityTimelineService,
 	) {
 		this.macros = new StackMacros(this.projectId, this.stackService, this.uiState);
 	}

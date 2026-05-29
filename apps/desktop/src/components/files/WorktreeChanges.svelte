@@ -1,5 +1,4 @@
 <script lang="ts">
-	import FileGroupingToggle from "$components/files/FileGroupingToggle.svelte";
 	import FileListItems from "$components/files/FileListItems.svelte";
 	import FileListProvider from "$components/files/FileListProvider.svelte";
 	import FileListViewToggle from "$components/files/FileListViewToggle.svelte";
@@ -7,7 +6,6 @@
 	import ScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
 	import Dropzone from "$components/shared/Dropzone.svelte";
 	import DropzoneOverlay from "$components/shared/DropzoneOverlay.svelte";
-	import type { GroupByMode } from "$lib/files/fileGrouping";
 	import { UncommitDzHandler } from "$lib/dragging/dropHandlers/commitDropHandler";
 	import { AssignmentDropHandler } from "$lib/dragging/dropHandlers/hunkDropHandler";
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
@@ -90,7 +88,6 @@
 	const changes = $derived(uncommittedService.changesByStackId(stackId || null));
 
 	let listMode: "list" | "tree" = $state("list");
-	let groupBy: GroupByMode = $state("none");
 
 	let scrollTopIsVisible = $state(true);
 
@@ -110,13 +107,7 @@
 </script>
 
 {#snippet fileList()}
-	<FileListProvider
-		changes={changes.current}
-		{selectionId}
-		{groupBy}
-		uncommittedService={uncommittedService}
-		{stackId}
-	>
+	<FileListProvider changes={changes.current} {selectionId}>
 		<FileListItems
 			{projectId}
 			{stackId}
@@ -170,10 +161,7 @@
 					</div>
 				</div>
 				{#if changes.current.length > 0}
-					<div class="worktree-header__controls">
-						<FileGroupingToggle bind:groupBy persistId={persistId} />
-						<FileListViewToggle bind:mode={listMode} {persistId} />
-					</div>
+					<FileListViewToggle bind:mode={listMode} {persistId} />
 				{/if}
 			</div>
 		{/if}
@@ -232,15 +220,8 @@
 		gap: 6px;
 	}
 
-	.worktree-header__controls {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
 	/* MODIFIERS */
 	.sticked-top {
 		border-bottom-color: var(--border-2);
 	}
-}
 </style>

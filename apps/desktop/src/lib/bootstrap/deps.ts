@@ -29,6 +29,10 @@ import { CherryApplyService, CHERRY_APPLY_SERVICE } from "$lib/git/cherryApplySe
 import { GitService, GIT_SERVICE } from "$lib/git/gitService";
 import { HOOKS_SERVICE, HooksService } from "$lib/git/hooksService";
 import { REMOTES_SERVICE, RemotesService } from "$lib/git/remotesService";
+import {
+	ActivityTimelineService,
+	ACTIVITY_TIMELINE_SERVICE,
+} from "$lib/activity/activityTimelineService.svelte";
 import { HISTORY_SERVICE, HistoryService } from "$lib/history/history";
 import { OplogService, OPLOG_SERVICE } from "$lib/history/oplogService.svelte";
 import { DiffService, DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
@@ -190,11 +194,13 @@ export function initDependencies(args: {
 	// STACKS & WORKSPACE MANAGEMENT
 	// ============================================================================
 
+	const activityTimelineService = new ActivityTimelineService();
 	const stackService = new StackService(
 		clientState.backendApi,
 		clientState.dispatch,
 		forgeFactory,
 		uiState,
+		activityTimelineService,
 	);
 	const modeService = new ModeService(clientState.backendApi);
 	const rulesService = new RulesService(clientState.backendApi);
@@ -270,7 +276,10 @@ export function initDependencies(args: {
 	// ============================================================================
 
 	const imeHandler = new IMECompositionHandler();
-	const reorderDropzoneFactory = new ReorderDropzoneFactory(stackService, uiState);
+	const reorderDropzoneFactory = new ReorderDropzoneFactory(
+		stackService,
+		uiState,
+	);
 	const shortcutService = new ShortcutService(backend);
 	const dragStateService = new DragStateService();
 	const dropzoneRegistry = new DropzoneRegistry();
@@ -333,6 +342,7 @@ export function initDependencies(args: {
 		[GITLAB_USER_SERVICE, gitlabUserService],
 		[GITLAB_CLIENT, gitLabClient],
 		[GIT_CONFIG_SERVICE, gitConfig],
+		[ACTIVITY_TIMELINE_SERVICE, activityTimelineService],
 		[GIT_SERVICE, gitService],
 		[HISTORY_SERVICE, historyService],
 		[HOOKS_SERVICE, hooksService],

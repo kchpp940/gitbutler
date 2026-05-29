@@ -77,10 +77,16 @@ export type StackBusyState = {
 	stackIds?: string[];
 };
 
+export type ActivityTimelineState = {
+	open: boolean;
+	highlightEventId?: string;
+};
+
 export type ProjectUiState = {
 	exclusiveAction: ExclusiveAction | undefined;
 	stackBusy: StackBusyState | undefined;
 	branchesToPoll: string[];
+	activityTimeline: ActivityTimelineState;
 };
 
 type GlobalModalType =
@@ -223,6 +229,7 @@ export class UiState {
 		exclusiveAction: undefined,
 		stackBusy: undefined,
 		branchesToPoll: [],
+		activityTimeline: { open: false },
 	});
 
 	/** Properties that are globally scoped. */

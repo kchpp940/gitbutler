@@ -1,7 +1,16 @@
 <script lang="ts">
-	import { dismissToast, toastStore } from "$lib/notifications/toasts";
+	import { dismissToast, toastStore, type ActivityTarget } from "$lib/notifications/toasts";
+	import { ACTIVITY_TIMELINE_SERVICE } from "$lib/activity/activityTimelineService.svelte";
+	import { inject } from "@gitbutler/core/context";
 	import { InfoMessage, Markdown, TestId } from "@gitbutler/ui";
 	import { slide } from "svelte/transition";
+
+	const activityTimelineService = inject(ACTIVITY_TIMELINE_SERVICE, { optional: true });
+
+	function openInTimeline(target: ActivityTarget, dismiss: () => void) {
+		dismiss();
+		activityTimelineService?.navigateTo(target);
+	}
 </script>
 
 <div class="toast-controller hide-native-scrollbar">
@@ -13,11 +22,17 @@
 				testId={toast.testId ?? TestId.ToastInfoMessage}
 				style={toast.style ?? "info"}
 				error={toast.error}
-				secondaryLabel={toast.extraAction ? toast.extraAction.label : "Dismiss"}
+				secondaryLabel={toast.activityTarget ? "View in Timeline" : toast.extraAction ? toast.extraAction.label : "Dismiss"}
 				secondaryTestId={toast.extraAction ? toast.extraAction.testId : undefined}
-				secondaryAction={toast.extraAction ? () => toast.extraAction?.onClick(dismiss) : dismiss}
-				tertiaryLabel={toast.extraAction ? "Dismiss" : undefined}
-				tertiaryAction={toast.extraAction ? dismiss : undefined}
+				secondaryAction={
+					toast.activityTarget
+						? () => openInTimeline(toast.activityTarget!, dismiss)
+						: toast.extraAction
+							? () => toast.extraAction?.onClick(dismiss)
+							: dismiss
+				}
+				tertiaryLabel={toast.activityTarget || toast.extraAction ? "Dismiss" : undefined}
+				tertiaryAction={dismiss}
 				shadow
 			>
 				{#snippet title()}

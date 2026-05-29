@@ -1,15 +1,12 @@
 <script lang="ts">
 	import ChangedFileStats from "$components/files/ChangedFileStats.svelte";
-	import FileGroupingToggle from "$components/files/FileGroupingToggle.svelte";
 	import FileListConflicts from "$components/files/FileListConflicts.svelte";
 	import FileListItems from "$components/files/FileListItems.svelte";
 	import FileListProvider from "$components/files/FileListProvider.svelte";
 	import emptyFolderSvg from "$lib/assets/empty-state/empty-folder.svg?raw";
-	import type { GroupByMode } from "$lib/files/fileGrouping";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { readStableSelectionKey, stableSelectionKey, type SelectionId } from "$lib/selection/key";
-	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
-	import { inject, injectOptional } from "@gitbutler/core/context";
+	import { inject } from "@gitbutler/core/context";
 	import { EmptyStatePlaceholder, Icon } from "@gitbutler/ui";
 
 	import type { ConflictEntriesObj } from "$lib/files/conflicts";
@@ -53,14 +50,12 @@
 	}: Props = $props();
 
 	const idSelection = inject(FILE_SELECTION_MANAGER);
-	const uncommittedService = injectOptional(UNCOMMITTED_SERVICE, undefined);
 	// Turn the selection key into a string so it can be watched reactively in a consistent way.
 	const stringSelectionKey = $derived(stableSelectionKey(selectionId));
 	// Derive the path of the first changed file, so it can be watched reactively in a consistent way.
 	const firstChangePath = $derived(changes.at(0)?.path);
 
 	let listMode: "list" | "tree" = $state("tree");
-	let groupBy: GroupByMode = $state("none");
 	const hasConflicts = $derived(conflictEntries && Object.keys(conflictEntries).length > 0);
 	// eslint-disable-next-line svelte/prefer-writable-derived
 	let folded = $state(false);
@@ -109,9 +104,6 @@
 				linesAdded={stats?.linesAdded}
 				linesRemoved={stats?.linesRemoved}
 			/>
-			{#if changes.length > 0}
-				<FileGroupingToggle bind:groupBy persistId={`changed-files-${persistId}`} />
-			{/if}
 		</div>
 
 		{#if !folded}
@@ -127,14 +119,7 @@
 					{/snippet}
 				</EmptyStatePlaceholder>
 			{:else}
-				<FileListProvider
-					{changes}
-					{selectionId}
-					{allowUnselect}
-					{groupBy}
-					uncommittedService={uncommittedService}
-					{stackId}
-				>
+				<FileListProvider {changes} {selectionId} {allowUnselect}>
 					<FileListConflicts
 						{projectId}
 						{stackId}

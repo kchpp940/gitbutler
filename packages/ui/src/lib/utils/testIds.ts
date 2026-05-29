@@ -168,6 +168,8 @@ export enum TestId {
 	DiscardFileChangesConfirmationModal = "discard-file-changes-confirmation-modal",
 	DiscardFileChangesConfirmationModal_Cancel = "discard-file-changes-confirmation-modal-cancel",
 	DiscardFileChangesConfirmationModal_Discard = "discard-file-changes-confirmation-modal-discard",
+	ActivityTimelinePanel = "activity-timeline-panel",
+	ActivityTimelineToggleButton = "activity-timeline-toggle-button",
 }
 
 export enum ElementId {

@@ -1,3 +1,7 @@
+import {
+	ActivityTimelineService,
+	ACTIVITY_TIMELINE_SERVICE,
+} from "$lib/activity/activityTimelineService.svelte";
 import { getBranchNameFromRef } from "$lib/branches/branchUtils";
 import { sortLikeFileTree } from "$lib/files/filetreeV3";
 import { showToast } from "$lib/notifications/toasts";
@@ -47,6 +51,7 @@ export class StackService {
 		private dispatch: AppDispatch,
 		private forgeFactory: DefaultForgeFactory,
 		private uiState: UiState,
+		private activityTimelineService?: ActivityTimelineService,
 	) {}
 
 	stacks(projectId: string) {
@@ -116,11 +121,49 @@ export class StackService {
 	}
 
 	get newStackMutation() {
-		return this.backendApi.endpoints.createStack.mutate;
+		return async (args: Parameters<typeof this.backendApi.endpoints.createStack.mutate>[0]) => {
+			const result = await this.backendApi.endpoints.createStack.mutate(args);
+			if (this.activityTimelineService && result.id) {
+				this.activityTimelineService.createStack(
+					args.projectId,
+					result.id,
+					result.heads.at(0)?.name,
+				);
+			}
+			return result;
+		};
 	}
 
 	get updateStackOrder() {
-		return this.backendApi.endpoints.updateStackOrder.mutate;
+		const mutate = this.backendApi.endpoints.updateStackOrder.mutate;
+		return async (
+			args: Parameters<typeof this.backendApi.endpoints.updateStackOrder.mutate>[0],
+		) => {
+			const result = await mutate(args);
+			if (this.activityTimelineService && args.stacks.length > 1) {
+				const stacks = args.stacks;
+				const stacksByOldIndex = [...stacks].sort((a, b) => {
+					const oldA = stacks.findIndex((s) => s.id === a.id);
+					const oldB = stacks.findIndex((s) => s.id === b.id);
+					return oldA - oldB;
+				});
+				const stacksByNewIndex = [...stacks].sort((a, b) => a.order - b.order);
+
+				for (const stack of stacks) {
+					const oldIndex = stacksByOldIndex.findIndex((s) => s.id === stack.id);
+					const newIndex = stacksByNewIndex.findIndex((s) => s.id === stack.id);
+					if (oldIndex !== newIndex) {
+						this.activityTimelineService.stackReorder(
+							args.projectId,
+							stack.id,
+							oldIndex,
+							newIndex,
+						);
+					}
+				}
+			}
+			return result;
+		};
 	}
 
 	branches(projectId: string, stackId?: string) {
@@ -546,7 +589,17 @@ export class StackService {
 	}
 
 	get newBranch() {
-		return this.backendApi.endpoints.newBranch.useMutation();
+		return this.backendApi.endpoints.newBranch.useMutation({
+			sideEffect: (_, args) => {
+				if (this.activityTimelineService && args.stackId) {
+					this.activityTimelineService.createBranch(
+						args.projectId,
+						args.stackId,
+						args.name,
+					);
+				}
+			},
+		});
 	}
 
 	async uncommit(args: { projectId: string; stackId: string; commitIds: string[] }) {
@@ -567,7 +620,17 @@ export class StackService {
 	}
 
 	get discardChanges() {
-		return this.backendApi.endpoints.discardChanges.mutate;
+		return async (args: Parameters<typeof this.backendApi.endpoints.discardChanges.mutate>[0]) => {
+			const result = await this.backendApi.endpoints.discardChanges.mutate(args);
+			if (this.activityTimelineService) {
+				this.activityTimelineService.discardChanges(
+					args.projectId,
+					args.virtualBranchId,
+					args.hunkReferences?.length ?? 0,
+				);
+			}
+			return result;
+		};
 	}
 
 	async moveChangesBetweenCommits(args: {
@@ -656,7 +719,21 @@ export class StackService {
 	}
 
 	get commitMove() {
-		return this.backendApi.endpoints.commitMove.mutate;
+		return async (args: Parameters<typeof this.backendApi.endpoints.commitMove.mutate>[0]) => {
+			const result = await this.backendApi.endpoints.commitMove.mutate(args);
+			if (this.activityTimelineService) {
+				const { projectId, subjectCommitIds, targetBranchName, sourceBranchName } = args;
+				this.activityTimelineService.commitMove(
+					projectId,
+					subjectCommitIds,
+					"",
+					"",
+					sourceBranchName,
+					targetBranchName,
+				);
+			}
+			return result;
+		};
 	}
 
 	get moveBranch() {
@@ -664,7 +741,25 @@ export class StackService {
 	}
 
 	get tearOffBranch() {
-		return this.backendApi.endpoints.tearOffBranch.mutate;
+		return async (args: Parameters<typeof this.backendApi.endpoints.tearOffBranch.mutate>[0]) => {
+			const result = await this.backendApi.endpoints.tearOffBranch.mutate(args);
+			if (this.activityTimelineService) {
+				const { projectId, sourceStackId, subjectBranchName } = args;
+				const stacks = result.workspace.headInfo.stacks;
+				const newStack = stacks.find((s) =>
+					s.heads.some((h) => h.name === subjectBranchName),
+				);
+				if (newStack?.id) {
+					this.activityTimelineService.branchTearoff(
+						projectId,
+						sourceStackId,
+						newStack.id,
+						subjectBranchName,
+					);
+				}
+			}
+			return result;
+		};
 	}
 
 	get integrateUpstreamCommits() {
@@ -692,7 +787,18 @@ export class StackService {
 	}
 
 	get squashCommits() {
-		return this.backendApi.endpoints.squashCommits.mutate;
+		return async (args: Parameters<typeof this.backendApi.endpoints.squashCommits.mutate>[0]) => {
+			const result = await this.backendApi.endpoints.squashCommits.mutate(args);
+			if (this.activityTimelineService) {
+				this.activityTimelineService.squashCommits(
+					args.projectId,
+					args.stackId,
+					args.sourceCommitIds,
+					args.targetCommitId,
+				);
+			}
+			return result;
+		};
 	}
 
 	get amendCommit() {
@@ -710,13 +816,22 @@ export class StackService {
 	}
 
 	get amendCommitMutation() {
-		return (args: AmendCommitRequest) =>
-			this.backendApi.endpoints.commitAmend.mutate({
+		return async (args: AmendCommitRequest) => {
+			const result = await this.backendApi.endpoints.commitAmend.mutate({
 				projectId: args.projectId,
 				commitId: args.commitId,
 				worktreeChanges: args.worktreeChanges,
 				dryRun: args.dryRun,
 			});
+			if (this.activityTimelineService && !args.dryRun && args.stackId) {
+				this.activityTimelineService.commitAmend(
+					args.projectId,
+					args.stackId,
+					args.commitId,
+				);
+			}
+			return result;
+		};
 	}
 
 	/** Squash all the commits in a branch together */
