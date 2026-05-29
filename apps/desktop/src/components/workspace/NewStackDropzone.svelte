@@ -1,9 +1,5 @@
 <script lang="ts">
 	import Dropzone from "$components/shared/Dropzone.svelte";
-	import {
-		ACTIVITY_TIMELINE_SERVICE,
-		type ActivityTimelineService,
-	} from "$lib/activity/activityTimelineService.svelte";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { OutsideLaneDzHandler } from "$lib/dragging/dropHandlers/stackDropHandler";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
@@ -36,10 +32,6 @@
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);
 	const baseBranchNameResponse = $derived(baseBranchService.baseBranchShortName(projectId));
 	const baseBranchName = $derived(baseBranchNameResponse.response);
-	const activityTimelineService = inject<ActivityTimelineService | undefined>(
-		ACTIVITY_TIMELINE_SERVICE,
-		{ optional: true },
-	);
 	const dzHandler = $derived(
 		new OutsideLaneDzHandler(
 			stackService,
@@ -49,7 +41,6 @@
 			uncommittedService,
 			diffService,
 			baseBranchName,
-			activityTimelineService,
 		),
 	);
 </script>

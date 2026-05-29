@@ -6,7 +6,6 @@
 	import SnapshotCard from "$components/history/SnapshotCard.svelte";
 	import ScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
 	import AppScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
-	import ActivityTimelinePanel from "$components/views/ActivityTimelinePanel.svelte";
 	import FullviewLoading from "$components/shared/FullviewLoading.svelte";
 	import InfiniteScrollTrigger from "$components/shared/InfiniteScrollTrigger.svelte";
 	import Resizer from "$components/shared/Resizer.svelte";
@@ -16,11 +15,9 @@
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createSnapshotSelection, type SelectionId } from "$lib/selection/key";
 	import { inject } from "@gitbutler/core/context";
-	import { Segment, SegmentControl, EmptyStatePlaceholder, Icon, Button } from "@gitbutler/ui";
+	import { EmptyStatePlaceholder, Icon, Button } from "@gitbutler/ui";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
 	import type { Snapshot } from "$lib/history/types";
-
-	type HistoryViewMode = "snapshots" | "activity";
 
 	// TODO: Refactor so we don't need non-null assertion.
 	const projectId = $derived(page.params.projectId!);
@@ -30,10 +27,8 @@
 	const idSelection = inject(FILE_SELECTION_MANAGER);
 
 	let sidebarEl = $state<HTMLElement>();
-	let viewMode = $state<HistoryViewMode>("snapshots");
 
 	const historyService = inject(HISTORY_SERVICE);
-	const stackService = inject(STACK_SERVICE);
 	const snapshotManager = $derived(historyService.snapshots(projectId));
 	const snapshots = $derived(snapshotManager.snapshots);
 	const [restore, restoration] = historyService.restoreSnapshot;
@@ -181,36 +176,18 @@
 		<div class="relative overflow-hidden radius-ml">
 			<div bind:this={sidebarEl} class="history-view__snapshots" use:focusable={{ vertical: true }}>
 				<div class="history-view__snapshots-header">
-					<SegmentControl selected={viewMode} size="small" onselect={(id) => (viewMode = id as HistoryViewMode)}>
-						<Segment id="snapshots">Snapshots</Segment>
-						<Segment id="activity">Activity</Segment>
-					</SegmentControl>
-					<div class="header-actions">
-						<Button
-							size="tag"
-							kind="outline"
-							icon="camera"
-							tooltip="Create a manual snapshot of your current state"
-							onclick={() => createSnapshotModal?.show()}
-						>
-							Create snapshot
-						</Button>
-					</div>
+					<h3 class="history-view__snapshots-header-title text-15 text-bold">Operations history</h3>
+					<Button
+						size="tag"
+						kind="outline"
+						icon="camera"
+						tooltip="Create a manual snapshot of your current state"
+						onclick={() => createSnapshotModal?.show()}
+					>
+						Create snapshot
+					</Button>
 				</div>
-				{#if viewMode === "snapshots"}
-					{@render historyEntries()}
-				{:else}
-					<div class="timeline-wrapper">
-						<ActivityTimelinePanel
-							{projectId}
-							showHeader={false}
-							onNavigateToStack={(stackId, commitId) => {
-								const url = `/${projectId}/workspace`;
-								location.href = url;
-							}}
-						/>
-					</div>
-				{/if}
+				{@render historyEntries()}
 			</div>
 
 			<Resizer
@@ -270,18 +247,9 @@
 		border-bottom: 1px solid var(--border-2);
 	}
 
-	.header-actions {
-		display: flex;
-		gap: 8px;
-	}
-
-	.timeline-wrapper {
+	.history-view__snapshots-header-title {
 		flex: 1;
-		overflow: hidden;
-
-		& :global(.activity-timeline) {
-			border-left: none;
-		}
+		pointer-events: none;
 	}
 
 	/* DATE HEADER */

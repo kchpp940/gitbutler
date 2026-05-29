@@ -54,6 +54,25 @@ pub fn git_test_fetch(
 
 #[but_api]
 #[instrument(err(Debug))]
+pub fn git_run_lfs_pull(ctx: &but_ctx::Context) -> Result<String> {
+    let repo = ctx.repo.get()?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| anyhow::anyhow!("bare repository has no workdir"))?;
+    let output = std::process::Command::new("git")
+        .args(["lfs", "pull"])
+        .current_dir(workdir)
+        .output()
+        .map_err(|e| anyhow::anyhow!("failed to run git lfs pull: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git lfs pull failed: {stderr}");
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[but_api]
+#[instrument(err(Debug))]
 pub fn git_index_size(ctx: &but_ctx::Context) -> Result<usize> {
     let size = ctx
         .repo

@@ -90,6 +90,14 @@ export class ProjectsService {
 		);
 	}
 
+	projectHealthCheck(projectId: string) {
+		return this.backendApi.endpoints.projectHealthCheck.useQuery({ projectId });
+	}
+
+	async fetchHealthCheck(projectId: string) {
+		return await this.backendApi.endpoints.projectHealthCheck.fetch({ projectId });
+	}
+
 	async promptForDirectory(): Promise<string | undefined> {
 		const cookiePath = getCookie("test-projectPath");
 		if (cookiePath) {

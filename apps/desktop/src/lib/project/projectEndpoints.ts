@@ -9,6 +9,35 @@ export type ProjectInfo = {
 	headsup?: string;
 };
 
+export type HealthCheckSeverity = "critical" | "warning" | "info";
+export type HealthCheckCategory =
+	| "repo_ownership"
+	| "permission"
+	| "remote"
+	| "lfs_filter"
+	| "database"
+	| "sync";
+
+export type HealthCheckFixAction =
+	| { type: "add_safe_directory"; path: string }
+	| { type: "refresh_base_branch" }
+	| { type: "invalidate_health_cache" }
+	| { type: "add_remote" }
+	| { type: "run_lfs_pull" };
+
+export type HealthCheckItem = {
+	id: string;
+	category: HealthCheckCategory;
+	severity: HealthCheckSeverity;
+	message: string;
+	fix_hint?: string;
+	fix_action?: HealthCheckFixAction;
+};
+
+export type ProjectHealthReport = {
+	items: HealthCheckItem[];
+};
+
 export type ServerCapabilities = {
 	isRemote: boolean;
 	canAddProjects: boolean;
@@ -69,6 +98,11 @@ export function buildProjectEndpoints(build: BackendEndpointBuilder) {
 		oplogDiffWorktrees: build.query<TreeChanges, { projectId: string; snapshotId: string }>({
 			extraOptions: { command: "oplog_diff_worktrees" },
 			query: (args) => args,
+		}),
+		projectHealthCheck: build.query<ProjectHealthReport, { projectId: string }>({
+			extraOptions: { command: "project_health_check" },
+			query: (args) => args,
+			providesTags: (_result, _error, args) => providesItem(ReduxTag.ProjectHealth, args.projectId),
 		}),
 	};
 }

@@ -2,13 +2,6 @@ import posthog from "posthog-js";
 import { writable, type Writable } from "svelte/store";
 import type { MessageStyle } from "@gitbutler/ui";
 
-export type ActivityTarget = {
-	projectId: string;
-	stackId?: string;
-	commitId?: string;
-	eventId?: string;
-};
-
 type ExtraAction = {
 	label: string;
 	testId?: string;
@@ -23,7 +16,6 @@ export interface Toast {
 	title?: string;
 	style?: MessageStyle;
 	extraAction?: ExtraAction;
-	activityTarget?: ActivityTarget;
 }
 
 export const toastStore: Writable<Toast[]> = writable([]);
@@ -80,19 +72,6 @@ export function showInfo(title: string, message: string, extraAction?: ExtraActi
 
 export function showWarning(title: string, message: string, extraAction?: ExtraAction) {
 	showToast({ title, message, style: "warning", extraAction });
-}
-
-export function showActivityToast(
-	title: string,
-	message: string,
-	target: ActivityTarget,
-) {
-	showToast({
-		title,
-		message,
-		style: "info",
-		activityTarget: target,
-	});
 }
 
 export function dismissToast(messageId: string | undefined) {

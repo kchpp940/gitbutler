@@ -163,15 +163,6 @@
 			}, 50);
 		}
 	});
-
-	export function scrollToStack(stackId: string, _commitId?: string) {
-		if (lanesScrollableEl) {
-			const stackEl = stackElements[stackId];
-			if (stackEl) {
-				stackEl.scrollIntoView({ behavior: "smooth", inline: "center" });
-			}
-		}
-	}
 </script>
 
 {#if isNotEnoughHorzSpace}

@@ -29,10 +29,6 @@ import { CherryApplyService, CHERRY_APPLY_SERVICE } from "$lib/git/cherryApplySe
 import { GitService, GIT_SERVICE } from "$lib/git/gitService";
 import { HOOKS_SERVICE, HooksService } from "$lib/git/hooksService";
 import { REMOTES_SERVICE, RemotesService } from "$lib/git/remotesService";
-import {
-	ActivityTimelineService,
-	ACTIVITY_TIMELINE_SERVICE,
-} from "$lib/activity/activityTimelineService.svelte";
 import { HISTORY_SERVICE, HistoryService } from "$lib/history/history";
 import { OplogService, OPLOG_SERVICE } from "$lib/history/oplogService.svelte";
 import { DiffService, DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
@@ -43,6 +39,7 @@ import {
 } from "$lib/irc/workingFilesBroadcast.svelte";
 import { ModeService, MODE_SERVICE } from "$lib/mode/modeService";
 import { ProjectsService, PROJECTS_SERVICE } from "$lib/project/projectsService";
+import { HealthCheckService, HEALTH_CHECK_SERVICE } from "$lib/project/healthCheckService.svelte";
 import { PROMPT_SERVICE, PromptService } from "$lib/prompt/promptService";
 import RulesService, { RULES_SERVICE } from "$lib/rules/rulesService.svelte";
 import { RustSecretService, SECRET_SERVICE } from "$lib/secrets/secretsService";
@@ -185,6 +182,12 @@ export function initDependencies(args: {
 
 	const gitService = new GitService(backend, clientState.backendApi);
 	const baseBranchService = new BaseBranchService(clientState.backendApi);
+	const healthCheckService = new HealthCheckService(
+		clientState.backendApi,
+		clientState.dispatch,
+		backend,
+		baseBranchService,
+	);
 	const branchService = new BranchService(clientState.backendApi);
 	const cherryApplyService = new CherryApplyService(clientState.backendApi);
 	const remotesService = new RemotesService(backend);
@@ -194,13 +197,11 @@ export function initDependencies(args: {
 	// STACKS & WORKSPACE MANAGEMENT
 	// ============================================================================
 
-	const activityTimelineService = new ActivityTimelineService();
 	const stackService = new StackService(
 		clientState.backendApi,
 		clientState.dispatch,
 		forgeFactory,
 		uiState,
-		activityTimelineService,
 	);
 	const modeService = new ModeService(clientState.backendApi);
 	const rulesService = new RulesService(clientState.backendApi);
@@ -276,10 +277,7 @@ export function initDependencies(args: {
 	// ============================================================================
 
 	const imeHandler = new IMECompositionHandler();
-	const reorderDropzoneFactory = new ReorderDropzoneFactory(
-		stackService,
-		uiState,
-	);
+	const reorderDropzoneFactory = new ReorderDropzoneFactory(stackService, uiState);
 	const shortcutService = new ShortcutService(backend);
 	const dragStateService = new DragStateService();
 	const dropzoneRegistry = new DropzoneRegistry();
@@ -342,11 +340,11 @@ export function initDependencies(args: {
 		[GITLAB_USER_SERVICE, gitlabUserService],
 		[GITLAB_CLIENT, gitLabClient],
 		[GIT_CONFIG_SERVICE, gitConfig],
-		[ACTIVITY_TIMELINE_SERVICE, activityTimelineService],
 		[GIT_SERVICE, gitService],
 		[HISTORY_SERVICE, historyService],
 		[HOOKS_SERVICE, hooksService],
 		[HTTP_CLIENT, httpClient],
+		[HEALTH_CHECK_SERVICE, healthCheckService],
 		[FILE_SELECTION_MANAGER, fileSelectionManager],
 		[IME_COMPOSITION_HANDLER, imeHandler],
 		[IRC_API_SERVICE, ircApiService],

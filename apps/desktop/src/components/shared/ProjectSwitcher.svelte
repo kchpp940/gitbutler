@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
+	import HealthCheckSummary from "$components/shared/HealthCheckSummary.svelte";
 	import { handleAddProjectOutcome } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { projectPath } from "$lib/routes/routes.svelte";
@@ -40,7 +41,10 @@
 	>
 		{#snippet itemSnippet({ item, highlighted })}
 			<SelectItem selected={item.value === selectedId} {highlighted}>
-				{item.label}
+				<div class="project-item">
+					<span>{item.label}</span>
+					<HealthCheckSummary projectId={item.value} />
+				</div>
 			</SelectItem>
 		{/snippet}
 
@@ -54,7 +58,6 @@
 						try {
 							const outcome = await projectsService.addProject();
 							if (!outcome) {
-								// User cancelled the project creation
 								newProjectLoading = false;
 								return;
 							}
@@ -102,5 +105,13 @@
 		flex-direction: column;
 		align-items: flex-end;
 		gap: 10px;
+	}
+
+	.project-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		justify-content: space-between;
+		flex: 1;
 	}
 </style>

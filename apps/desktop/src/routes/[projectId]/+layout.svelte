@@ -28,6 +28,7 @@
 	import { MODE_SERVICE } from "$lib/mode/modeService";
 	import { showInfo, showWarning } from "$lib/notifications/toasts";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { HEALTH_CHECK_SERVICE } from "$lib/project/healthCheckService.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
@@ -57,6 +58,7 @@
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settingsStore = settingsService.appSettings;
 	const projectsService = inject(PROJECTS_SERVICE);
+	const healthCheckService = inject(HEALTH_CHECK_SERVICE);
 	const clientState = inject(CLIENT_STATE);
 
 	// Project data
@@ -365,6 +367,8 @@
 		try {
 			const info = await projectsService.setActiveProject(projectId);
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActive);
+
+			healthCheckService.fetchReport(projectId).catch(() => {});
 
 			if (!info) return;
 

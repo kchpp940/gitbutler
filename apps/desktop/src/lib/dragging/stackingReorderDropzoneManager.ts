@@ -1,6 +1,7 @@
 import { CommitDropData } from "$lib/dragging/dropHandlers/commitDropHandler";
 import { toCommitMovePlacement } from "$lib/stacks/commitMovePlacement";
 import { withStackBusy, type UiState } from "$lib/state/uiState.svelte";
+import { InjectionToken } from "@gitbutler/core/context";
 import type { DropzoneHandler } from "$lib/dragging/handler";
 import type { StackService } from "$lib/stacks/stackService.svelte";
 
@@ -46,8 +47,6 @@ export class ReorderCommitDzHandler implements DropzoneHandler {
 					subjectCommitIds: [data.commit.id],
 					relativeTo,
 					side,
-					sourceBranchName: data.branchName,
-					targetBranchName: this.currentSeriesName,
 					dryRun: false,
 				});
 			},
@@ -118,13 +117,7 @@ export class ReorderDropzoneFactory {
 	) {}
 
 	build(projectId: string, laneId: string, series: { name: string; commitIds: string[] }[]) {
-		return new ReorderCommitDzFactory(
-			projectId,
-			this.stackService,
-			this.uiState,
-			series,
-			laneId,
-		);
+		return new ReorderCommitDzFactory(projectId, this.stackService, this.uiState, series, laneId);
 	}
 }
 

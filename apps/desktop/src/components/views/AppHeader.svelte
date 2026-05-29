@@ -2,6 +2,7 @@
 	import { goto } from "$app/navigation";
 	import CreateBranchModal from "$components/branch/CreateBranchModal.svelte";
 	import SyncButton from "$components/forge/SyncButton.svelte";
+	import HealthCheckSummary from "$components/shared/HealthCheckSummary.svelte";
 	import IntegrateUpstreamModal from "$components/upstream/IntegrateUpstreamModal.svelte";
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
@@ -166,7 +167,10 @@
 
 				{#snippet itemSnippet({ item, highlighted })}
 					<SelectItem selected={item.value === projectId} {highlighted}>
-						{item.label}
+						<div class="project-list-item">
+							<span>{item.label}</span>
+							<HealthCheckSummary projectId={item.value} />
+						</div>
 					</SelectItem>
 				{/snippet}
 
@@ -339,6 +343,14 @@
 	/** Mac padding added here to not affect header flex-box sizing, only applied when using custom title bar. */
 	.mac .chrome-left-buttons.has-traffic-lights {
 		padding-left: 70px;
+	}
+
+	.project-list-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		justify-content: space-between;
+		flex: 1;
 	}
 
 	.chrome-you-are-up-to-date {
