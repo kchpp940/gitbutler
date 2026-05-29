@@ -1,6 +1,9 @@
 <script lang="ts">
 	import CollapseStackButton from "$components/branch/CollapseStackButton.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { UpdateStackOrderCommand, UnapplyStackCommand } from "$lib/stacks/stackCommands";
 	import { inject } from "@gitbutler/core/context";
 	import { ContextMenuItem, ContextMenuSection, Icon, KebabButton } from "@gitbutler/ui";
 	import type { Stack } from "$lib/stacks/stack";
@@ -17,6 +20,7 @@
 	let { stackId, projectId, disabled = false, onFold }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	// Get all stacks to determine if we can move left/right
 	const stacksQuery = $derived(stackService.stacks(projectId));
@@ -38,12 +42,15 @@
 		// Insert at the beginning (leftmost position)
 		newStacks.unshift(removed);
 
-		await stackService.updateStackOrder({
+		const command: UpdateStackOrderCommand = {
+			type: STACK_COMMANDS.UPDATE_STACK_ORDER,
 			projectId,
 			stacks: newStacks
 				.map((stack, i) => (stack.id ? { id: stack.id, order: i } : undefined))
 				.filter((s): s is { id: string; order: number } => s !== undefined),
-		});
+		};
+
+		await commandExecutor.execute(command);
 
 		// Refetch to update the UI
 		await stacksQuery.result.refetch();
@@ -59,12 +66,15 @@
 		// Insert at the end (rightmost position)
 		newStacks.push(removed);
 
-		await stackService.updateStackOrder({
+		const command: UpdateStackOrderCommand = {
+			type: STACK_COMMANDS.UPDATE_STACK_ORDER,
 			projectId,
 			stacks: newStacks
 				.map((stack, i) => (stack.id ? { id: stack.id, order: i } : undefined))
 				.filter((s): s is { id: string; order: number } => s !== undefined),
-		});
+		};
+
+		await commandExecutor.execute(command);
 
 		// Refetch to update the UI
 		await stacksQuery.result.refetch();
@@ -74,10 +84,12 @@
 		if (!stackId) return;
 
 		try {
-			await stackService.unapply({
+			const command: UnapplyStackCommand = {
+				type: STACK_COMMANDS.UNAPPLY_STACK,
 				projectId,
 				stackId,
-			});
+			};
+			await commandExecutor.execute(command);
 		} finally {
 			// Always refetch to clear stale stacks from the UI,
 			// even if the unapply failed (e.g. branch already removed).

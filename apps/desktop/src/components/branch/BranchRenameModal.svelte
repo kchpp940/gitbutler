@@ -10,14 +10,14 @@
 
 <script lang="ts">
 	import BranchNameTextbox from "$components/branch/BranchNameTextbox.svelte";
-	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { UpdateBranchNameCommand } from "$lib/stacks/stackCommands";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, ElementId, Modal, TestId } from "@gitbutler/ui";
 
 	const { projectId, stackId, laneId, branchName, isPushed }: BranchRenameModalProps = $props();
-	const stackService = inject(STACK_SERVICE);
-
-	const [renameBranch, renameQuery] = stackService.updateBranchName;
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	let newName: string | undefined = $state();
 	let normalizedRefName: string | undefined = $state();
@@ -29,7 +29,6 @@
 	export async function show() {
 		newName = branchName;
 		modal?.show();
-		// Select text after async value is set
 		await branchNameInput?.selectAll();
 	}
 </script>
@@ -41,8 +40,16 @@
 	type={isPushed ? "warning" : "info"}
 	bind:this={modal}
 	onSubmit={async (close) => {
-		if (normalizedRefName) {
-			renameBranch({ projectId, stackId, laneId, branchName, newName: normalizedRefName });
+		if (normalizedRefName && stackId) {
+			const command: UpdateBranchNameCommand = {
+				type: STACK_COMMANDS.UPDATE_BRANCH_NAME,
+				projectId,
+				stackId,
+				laneId,
+				branchName,
+				newName: normalizedRefName,
+			};
+			await commandExecutor.execute(command);
 		}
 		close();
 	}}
@@ -70,8 +77,7 @@
 			testId={TestId.BranchHeaderRenameModal_ActionButton}
 			style="pop"
 			type="submit"
-			disabled={!isBranchNameValid}
-			loading={renameQuery.current.isLoading}>Rename</Button
+			disabled={!isBranchNameValid}>Rename</Button
 		>
 	{/snippet}
 </Modal>

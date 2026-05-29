@@ -33,9 +33,11 @@
 	import { createCommitSelection } from "$lib/selection/key";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { getStackContext } from "$lib/stacks/stackController.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { UncommitCommand, SquashCommitsCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-
-	import { UI_STATE, withStackBusy } from "$lib/state/uiState.svelte";
+	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { ensureValue } from "$lib/utils/validation";
 	import { inject } from "@gitbutler/core/context";
 	import { TestId } from "@gitbutler/ui";
@@ -58,6 +60,7 @@
 
 	const controller = getStackContext();
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const ircApiService = inject(IRC_API_SERVICE);
 	const settingsService = inject(SETTINGS_SERVICE);
@@ -178,13 +181,13 @@
 
 	async function handleUncommit(commitId: string) {
 		const targetStackId = ensureValue(stackId);
-		await withStackBusy(uiState, projectId, { commitId, stackIds: [targetStackId] }, async () => {
-			await stackService.uncommit({
-				projectId,
-				stackId: targetStackId,
-				commitIds: [commitId],
-			});
-		});
+		const command: UncommitCommand = {
+			type: STACK_COMMANDS.UNCOMMIT,
+			projectId,
+			stackId: targetStackId,
+			commitIds: [commitId],
+		};
+		await commandExecutor.execute(command);
 	}
 
 	async function handleUncommitSelected(selectedIds?: string[]) {
@@ -197,13 +200,13 @@
 		const filtered = commitIds.filter((id) => allIds.includes(id));
 		if (filtered.length === 0) return;
 
-		await withStackBusy(uiState, projectId, { stackIds: [targetStackId] }, async () => {
-			await stackService.uncommit({
-				projectId,
-				stackId: targetStackId,
-				commitIds: filtered,
-			});
-		});
+		const command: UncommitCommand = {
+			type: STACK_COMMANDS.UNCOMMIT,
+			projectId,
+			stackId: targetStackId,
+			commitIds: filtered,
+		};
+		await commandExecutor.execute(command);
 		controller.selection.set(undefined);
 	}
 
@@ -220,14 +223,14 @@
 		const targetCommitId = sorted[sorted.length - 1]!;
 		const sourceCommitIds = sorted.slice(0, -1);
 
-		await withStackBusy(uiState, projectId, { stackIds: [targetStackId] }, async () => {
-			await stackService.squashCommits({
-				projectId,
-				stackId: targetStackId,
-				sourceCommitIds,
-				targetCommitId,
-			});
-		});
+		const command: SquashCommitsCommand = {
+			type: STACK_COMMANDS.SQUASH_COMMITS,
+			projectId,
+			stackId: targetStackId,
+			sourceCommitIds,
+			targetCommitId,
+		};
+		await commandExecutor.execute(command);
 		controller.selection.set(undefined);
 	}
 

@@ -5,8 +5,8 @@
 	import UnassignedFoldButton from "$components/workspace/UnassignedFoldButton.svelte";
 	import noChanges from "$lib/assets/empty-state/no-new-changes.svg?raw";
 	import { stagingBehaviorFeature } from "$lib/config/uiFeatureFlags";
-	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
-	import type { FileChangesViewModel } from "$lib/selection/fileChangesViewModel.svelte";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { createWorktreeSelection } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { ActionEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
@@ -16,15 +16,17 @@
 
 	interface Props {
 		projectId: string;
-		viewModel: FileChangesViewModel;
 		onFileClick?: (index: number) => void;
 		visibleRange?: { start: number; end: number };
 	}
 
-	const { projectId, viewModel, onFileClick, visibleRange }: Props = $props();
+	const { projectId, onFileClick, visibleRange }: Props = $props();
+
+	const selectionId = createWorktreeSelection({ stackId: undefined });
 
 	const uiState = inject(UI_STATE);
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 	const posthog = inject(POSTHOG_WRAPPER);
 	const projectState = $derived(uiState.project(projectId));
 	const unassignedSidebarFolded = $derived(uiState.global.unassignedSidebarFolded);
@@ -41,7 +43,7 @@
 	}
 
 	function unselectFiles() {
-		viewModel.dispatchSelection({ type: "clear" });
+		idSelection.clear(selectionId);
 	}
 
 	$effect(() => {
@@ -55,23 +57,23 @@
 	}
 
 	function checkSelectedFilesForCommit() {
-		const selectedPaths = Array.from(viewModel.selection.current.selectedPaths);
+		const selectionId = createWorktreeSelection({});
+		const selectedPaths = idSelection.values(selectionId).map((entry) => entry.path);
 
+		// If there are selected paths in the unassigned selection, we check those.
 		if (selectedPaths.length > 0) {
-			for (const path of selectedPaths) {
-				viewModel.dispatchHunkSelection({ type: "checkFile", path });
-			}
+			uncommittedService.checkFiles(null, selectedPaths);
 		} else {
-			viewModel.dispatchHunkSelection({ type: "checkAll" });
+			uncommittedService.checkAll(null);
 		}
 	}
 
 	function uncheckAll() {
-		viewModel.dispatchHunkSelection({ type: "uncheckAll" });
+		uncommittedService.uncheckAll(null);
 	}
 
 	function checkAllFiles() {
-		viewModel.dispatchHunkSelection({ type: "checkAll" });
+		uncommittedService.checkAll(null);
 	}
 
 	function checkFilesForCommit(): true {
@@ -80,6 +82,7 @@
 				checkAllFiles();
 				return true;
 			case "selection":
+				// We only check the selected files.
 				checkSelectedFilesForCommit();
 				return true;
 			case "none":
@@ -106,7 +109,6 @@
 					{projectId}
 					stackId={undefined}
 					mode="unassigned"
-					{viewModel}
 					{foldButton}
 					{onFileClick}
 					{visibleRange}

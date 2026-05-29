@@ -22,6 +22,12 @@
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { workspacePath } from "$lib/routes/routes.svelte";
 	import { handleCreateBranchFromBranchOutcome } from "$lib/stacks/stack";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type {
+		CreateVirtualBranchFromBranchCommand,
+		DeleteLocalBranchCommand,
+	} from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { combineResults } from "$lib/state/helpers";
 	import { inject } from "@gitbutler/core/context";
@@ -49,6 +55,7 @@
 		| { type: "target"; commitId?: string };
 
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const forgeUserQuery = $derived(forge.current.user);
@@ -89,23 +96,31 @@
 		const remoteRef = remote ? `refs/remotes/${remote}/${branchName}` : undefined;
 		const branchRef = hasLocal ? `refs/heads/${branchName}` : remoteRef;
 		if (branchRef) {
-			const outcome = await stackService.createVirtualBranchFromBranch({
+			const command: CreateVirtualBranchFromBranchCommand = {
+				type: STACK_COMMANDS.CREATE_VIRTUAL_BRANCH_FROM_BRANCH,
 				projectId,
+				stackId: "",
 				branch: branchRef,
 				prNumber,
-			});
-			handleCreateBranchFromBranchOutcome(outcome);
+			};
+			const result = await commandExecutor.execute(command);
+			if (result.success && result.data) {
+				handleCreateBranchFromBranchOutcome(result.data);
+			}
 			await baseBranchService.refreshBaseBranch(projectId);
 		}
 		goto(workspacePath(projectId));
 	}
 
 	async function deleteLocalBranch(branchName: string) {
-		await stackService.deleteLocalBranch({
+		const command: DeleteLocalBranchCommand = {
+			type: STACK_COMMANDS.DELETE_LOCAL_BRANCH,
 			projectId,
+			stackId: "",
 			refname: `refs/heads/${branchName}`,
 			givenName: branchName,
-		});
+		};
+		await commandExecutor.execute(command);
 		// Unselect branch
 		await baseBranchService.refreshBaseBranch(projectId);
 	}

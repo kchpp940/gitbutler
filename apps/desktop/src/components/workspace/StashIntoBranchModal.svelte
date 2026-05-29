@@ -3,6 +3,9 @@
 	import { changesToDiffSpec } from "$lib/commits/utils";
 	import { autoSelectBranchCreationFeature } from "$lib/config/uiFeatureFlags";
 	import { isTreeChange } from "$lib/hunks/change";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { StashIntoBranchCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { AsyncButton, Button, Modal } from "@gitbutler/ui";
@@ -35,6 +38,7 @@
 	const { projectId }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	let modal: ReturnType<typeof Modal> | undefined;
 	let stashBranchName = $state<string>();
@@ -55,11 +59,13 @@
 	async function confirmStashIntoBranch(item: ChangedFilesItem, branchName: string | undefined) {
 		if (!branchName) return;
 
-		await stackService.stashIntoBranch({
+		const command: StashIntoBranchCommand = {
+			type: STACK_COMMANDS.STASH_INTO_BRANCH,
 			projectId,
+			stackId: "",
 			branchName,
-			worktreeChanges: changesToDiffSpec(item.changes),
-		});
+		};
+		await commandExecutor.execute(command);
 
 		modal?.close();
 	}

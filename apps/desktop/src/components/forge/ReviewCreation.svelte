@@ -32,6 +32,9 @@
 	import { partialStackRequestsForcePush, requiresPush } from "$lib/stacks/stack";
 	import { type BranchPushResult } from "$lib/stacks/stackEndpoints";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { PushStackCommand } from "$lib/stacks/stackCommands";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { sleep } from "$lib/utils/sleep";
 	import { inject } from "@gitbutler/core/context";
@@ -59,13 +62,14 @@
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const prService = $derived(forge.current.prService);
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const aiService = inject(AI_SERVICE);
 	const remotesService = inject(REMOTES_SERVICE);
 	const uiState = inject(UI_STATE);
 	const settingsService = inject(SETTINGS_SERVICE);
 	const appSettings = settingsService.appSettings;
 
-	const [pushStack, stackPush] = stackService.pushStack;
+	const [, stackPush] = stackService.pushStack;
 
 	const branchesQuery = $derived(stackService.branches(projectId, stackId));
 	const branches = $derived(branchesQuery.response || []);
@@ -169,15 +173,25 @@
 		if (pushBeforeCreate) {
 			const firstPush = branchDetails?.pushStatus === "completelyUnpushed";
 			const withForce = partialStackRequestsForcePush(branchName, branches);
-			const pushQuery = await pushStack({
+
+			const command: PushStackCommand = {
+				type: STACK_COMMANDS.PUSH_STACK,
 				projectId,
 				stackId,
 				withForce,
-				skipForcePushProtection: false, // override available for regular push
+				skipForcePushProtection: false,
 				branch: branchName,
 				runHooks: $runHooks,
 				pushOpts: [],
-			});
+			};
+
+			const result = await commandExecutor.execute(command);
+
+			if (!result.success || !result.data) {
+				throw result.error;
+			}
+
+			const pushQuery = result.data as BranchPushResult;
 
 			if (firstPush) {
 				// TODO: fix this hack for reactively available prService.

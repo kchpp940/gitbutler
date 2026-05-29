@@ -51,6 +51,10 @@ import { SETTINGS_SERVICE, SettingsService } from "$lib/settings/appSettings";
 import { TerminalService, TERMINAL_SERVICE } from "$lib/settings/terminalService";
 import { ShortcutService, SHORTCUT_SERVICE } from "$lib/shortcuts/shortcutService";
 import { StackService, STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+import {
+	createStackCommandExecutor,
+	STACK_COMMAND_EXECUTOR,
+} from "$lib/stacks/commandExecutorFactory";
 import { ClientState, CLIENT_STATE } from "$lib/state/clientState.svelte";
 import { UiState, UI_STATE, uiStateSlice } from "$lib/state/uiState.svelte";
 import DataSharingService, { DATA_SHARING_SERVICE } from "$lib/support/dataSharing";
@@ -196,6 +200,17 @@ export function initDependencies(args: {
 		forgeFactory,
 		uiState,
 	);
+
+	const commandExecutor = createStackCommandExecutor({
+		services: {
+			stackService,
+			backendApi: clientState.backendApi,
+			dispatch: clientState.dispatch,
+			forgeFactory,
+			uiState,
+		},
+	});
+
 	const modeService = new ModeService(clientState.backendApi);
 	const rulesService = new RulesService(clientState.backendApi);
 	const worktreeService = new WorktreeService(clientState.backendApi);
@@ -354,6 +369,7 @@ export function initDependencies(args: {
 		[TERMINAL_SERVICE, terminalService],
 		[SHORTCUT_SERVICE, shortcutService],
 		[STACK_SERVICE, stackService],
+		[STACK_COMMAND_EXECUTOR, commandExecutor],
 		[REORDER_DROPZONE_FACTORY, reorderDropzoneFactory],
 		[UI_STATE, uiState],
 		[UNCOMMITTED_SERVICE, uncommittedService],

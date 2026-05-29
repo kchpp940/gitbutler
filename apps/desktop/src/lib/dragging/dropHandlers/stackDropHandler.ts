@@ -8,12 +8,19 @@ import {
 import { BranchDropData } from "$lib/dragging/dropHandlers/branchDropHandler";
 import { CommitDropData } from "$lib/dragging/dropHandlers/commitDropHandler";
 import { parseError } from "$lib/error/parser";
-import { unstackPRs, updateStackPrs } from "$lib/forge/shared/prFooter";
 import { toCommitMovePlacement } from "$lib/stacks/commitMovePlacement";
-import StackMacros from "$lib/stacks/macros";
 import { toMoveBranchWarning } from "$lib/stacks/stack";
-import { withStackBusy } from "$lib/state/uiState.svelte";
+import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+import type {
+	CreateStackCommand,
+	CreateCommitCommand,
+	MoveChangesBetweenCommitsCommand,
+	MoveCommitsCommand,
+	TearOffBranchCommand,
+} from "$lib/stacks/stackCommands";
 import { ensureValue } from "$lib/utils/validation";
+import { inject } from "@gitbutler/core/context";
 import { untrack } from "svelte";
 import type { DropResult } from "$lib/dragging/dropResult";
 import type { DropzoneHandler } from "$lib/dragging/handler";
@@ -26,7 +33,7 @@ import type { HunkAssignmentTarget } from "@gitbutler/but-sdk";
 
 /** Handler when drop changes on a special outside lanes dropzone. */
 export class OutsideLaneDzHandler implements DropzoneHandler {
-	private macros: StackMacros;
+	private readonly commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	constructor(
 		private stackService: StackService,
@@ -36,9 +43,7 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 		private readonly uncommittedService: UncommittedService,
 		private readonly diffService: DiffService,
 		private readonly baseBranchName: string | undefined,
-	) {
-		this.macros = new StackMacros(this.projectId, this.stackService, this.uiState);
-	}
+	) {}
 
 	private stackTarget(stackId: string): HunkAssignmentTarget {
 		return { type: "stack", subject: { stackId } };
@@ -84,35 +89,76 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 	async ondropChangeData(data: ChangeDropData) {
 		switch (data.selectionId.type) {
 			case "commit": {
-				const { stack, outcome, branchName } = await this.macros.createNewStackAndCommit();
-
-				if (!outcome.newCommit) {
-					throw new Error("Failed to create a new commit");
-				}
-
 				const sourceStackId = data.stackId;
 				const sourceCommitId = data.selectionId.commitId;
-				if (sourceStackId) {
-					const diffSpec = changesToDiffSpec(await data.treeChanges());
-					await this.macros.moveChangesToNewCommit(
-						ensureValue(stack.id),
-						outcome.newCommit,
-						sourceStackId,
-						sourceCommitId,
-						branchName,
-						diffSpec,
-					);
-				} else {
-					// Should not happen, but just in case
+				if (!sourceStackId) {
 					throw new Error("Change drop data must specify the source stackId");
 				}
+
+				// Step 1: Create new stack
+				const createStackCmd: CreateStackCommand = {
+					type: STACK_COMMANDS.CREATE_STACK,
+					projectId: this.projectId,
+					branch: { name: undefined },
+				};
+				const stackResult = await this.commandExecutor.execute<{
+					id: string;
+					heads: { name: string }[];
+				}>(createStackCmd);
+				if (!stackResult.success || !stackResult.data) {
+					throw stackResult.error ?? new Error("Failed to create new stack");
+				}
+				const stack = stackResult.data;
+				const newStackId = ensureValue(stack.id);
+				const branchName = ensureValue(stack.heads.at(0)?.name);
+
+				// Step 2: Create stub commit in new stack
+				const createCommitCmd: CreateCommitCommand = {
+					type: STACK_COMMANDS.CREATE_COMMIT,
+					projectId: this.projectId,
+					stackId: newStackId,
+					stackBranchName: branchName,
+					message: "New commit",
+					dryRun: false,
+				};
+				const commitResult = await this.commandExecutor.execute<{ newCommit: string }>(
+					createCommitCmd,
+				);
+				if (!commitResult.success || !commitResult.data?.newCommit) {
+					throw commitResult.error ?? new Error("Failed to create new commit");
+				}
+				const newCommitId = commitResult.data.newCommit;
+
+				// Step 3: Move changes from source commit to new commit
+				const diffSpec = changesToDiffSpec(await data.treeChanges());
+				const moveChangesCmd: MoveChangesBetweenCommitsCommand = {
+					type: STACK_COMMANDS.MOVE_CHANGES_BETWEEN_COMMITS,
+					projectId: this.projectId,
+					changes: diffSpec,
+					sourceStackId,
+					sourceCommitId,
+					destinationStackId: newStackId,
+					destinationCommitId: newCommitId,
+					dryRun: false,
+				};
+				await this.commandExecutor.execute(moveChangesCmd);
 				break;
 			}
 			case "worktree": {
-				const stack = await this.stackService.newStackMutation({
+				const createStackCmd: CreateStackCommand = {
+					type: STACK_COMMANDS.CREATE_STACK,
 					projectId: this.projectId,
 					branch: { name: undefined },
-				});
+				};
+				const result = await this.commandExecutor.execute<{
+					id: string;
+					heads: { name: string }[];
+				}>(createStackCmd);
+				if (!result.success || !result.data) {
+					throw result.error ?? new Error("Failed to create new stack");
+				}
+				const stack = result.data;
+				const newStackId = ensureValue(stack.id);
 
 				const changes = await data.treeChanges();
 				const assignments = changes
@@ -122,7 +168,7 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 					.map((h) => ({
 						hunkHeader: h.hunkHeader,
 						pathBytes: h.pathBytes,
-						target: this.stackTarget(ensureValue(stack.id)),
+						target: this.stackTarget(newStackId),
 					}));
 				await this.diffService.assignHunk({
 					projectId: this.projectId,
@@ -139,24 +185,50 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 					throw new Error("Hunk drop data must specify the source stackId and commitId");
 				}
 
-				const { stack, outcome, branchName } = await this.macros.createNewStackAndCommit();
-
-				if (!outcome.newCommit) {
-					throw new Error("Failed to create a new commit");
+				// Step 1: Create new stack
+				const createStackCmd: CreateStackCommand = {
+					type: STACK_COMMANDS.CREATE_STACK,
+					projectId: this.projectId,
+					branch: { name: undefined },
+				};
+				const stackResult = await this.commandExecutor.execute<{
+					id: string;
+					heads: { name: string }[];
+				}>(createStackCmd);
+				if (!stackResult.success || !stackResult.data) {
+					throw stackResult.error ?? new Error("Failed to create new stack");
 				}
+				const stack = stackResult.data;
+				const newStackId = ensureValue(stack.id);
+				const branchName = ensureValue(stack.heads.at(0)?.name);
 
+				// Step 2: Create stub commit in new stack
+				const createCommitCmd: CreateCommitCommand = {
+					type: STACK_COMMANDS.CREATE_COMMIT,
+					projectId: this.projectId,
+					stackId: newStackId,
+					stackBranchName: branchName,
+					message: "New commit",
+					dryRun: false,
+				};
+				const commitResult = await this.commandExecutor.execute<{ newCommit: string }>(
+					createCommitCmd,
+				);
+				if (!commitResult.success || !commitResult.data?.newCommit) {
+					throw commitResult.error ?? new Error("Failed to create new commit");
+				}
+				const newCommitId = commitResult.data.newCommit;
+
+				// Step 3: Move changes from source commit to new commit
 				const previousPathBytes =
 					data.change.status.type === "Rename"
 						? data.change.status.subject.previousPathBytes
 						: null;
 
-				await this.macros.moveChangesToNewCommit(
-					ensureValue(stack.id),
-					outcome.newCommit,
-					data.stackId,
-					data.commitId,
-					branchName,
-					[
+				const moveChangesCmd: MoveChangesBetweenCommitsCommand = {
+					type: STACK_COMMANDS.MOVE_CHANGES_BETWEEN_COMMITS,
+					projectId: this.projectId,
+					changes: [
 						{
 							previousPathBytes,
 							pathBytes: data.change.pathBytes,
@@ -170,14 +242,30 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 							],
 						},
 					],
-				);
+					sourceStackId: data.stackId,
+					sourceCommitId: data.commitId,
+					destinationStackId: newStackId,
+					destinationCommitId: newCommitId,
+					dryRun: false,
+				};
+				await this.commandExecutor.execute(moveChangesCmd);
 				break;
 			}
 			case "worktree": {
-				const stack = await this.stackService.newStackMutation({
+				const createStackCmd: CreateStackCommand = {
+					type: STACK_COMMANDS.CREATE_STACK,
 					projectId: this.projectId,
 					branch: { name: undefined },
-				});
+				};
+				const result = await this.commandExecutor.execute<{
+					id: string;
+					heads: { name: string }[];
+				}>(createStackCmd);
+				if (!result.success || !result.data) {
+					throw result.error ?? new Error("Failed to create new stack");
+				}
+				const stack = result.data;
+				const newStackId = ensureValue(stack.id);
 
 				const assignmentReactive = this.uncommittedService.getAssignmentByHeader(
 					data.stackId,
@@ -195,7 +283,7 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 						{
 							hunkHeader: assignment.hunkHeader,
 							pathBytes: assignment.pathBytes,
-							target: this.stackTarget(ensureValue(stack.id)),
+							target: this.stackTarget(newStackId),
 						},
 					],
 				});
@@ -214,74 +302,66 @@ export class OutsideLaneDzHandler implements DropzoneHandler {
 			this.uiState.lane(data.stackId).selection.set(undefined);
 		}
 
-		const stack = await this.stackService.newStackMutation({
+		// Step 1: Create new stack
+		const createStackCmd: CreateStackCommand = {
+			type: STACK_COMMANDS.CREATE_STACK,
 			projectId: this.projectId,
 			branch: { name: undefined },
-		});
-
-		const stackId = ensureValue(stack.id);
+		};
+		const stackResult = await this.commandExecutor.execute<{
+			id: string;
+			heads: { name: string }[];
+		}>(createStackCmd);
+		if (!stackResult.success || !stackResult.data) {
+			throw stackResult.error ?? new Error("Failed to create new stack");
+		}
+		const stack = stackResult.data;
+		const newStackId = ensureValue(stack.id);
 		const branchName = ensureValue(stack.heads.at(0)?.name);
 
+		// Step 2: Move commits to new stack
 		const { relativeTo, side } = toCommitMovePlacement({
 			targetBranchName: branchName,
 			targetCommitId: "top",
 		});
 
 		const commitIds = data.allCommits.map((c) => c.id);
-		let result: DropResult | undefined;
-		await withStackBusy(
-			this.uiState,
-			this.projectId,
-			{ stackIds: [data.stackId, stackId] },
-			async () => {
-				try {
-					await this.stackService.commitMove({
-						projectId: this.projectId,
-						subjectCommitIds: commitIds,
-						relativeTo,
-						side,
-						dryRun: false,
-					});
-				} catch (error) {
-					const { description, message } = parseError(error);
-					result = {
-						type: "warning",
-						title: "Cannot move commits",
-						message: description ?? message,
-					};
-				}
-			},
-		);
-		return result;
+		const moveCommitsCmd: MoveCommitsCommand = {
+			type: STACK_COMMANDS.MOVE_COMMITS,
+			projectId: this.projectId,
+			subjectCommitIds: commitIds,
+			relativeTo,
+			side,
+			sourceStackId: data.stackId,
+			targetStackId: newStackId,
+		};
+
+		const result = await this.commandExecutor.execute(moveCommitsCmd);
+		if (!result.success && result.error) {
+			const { description, message } = parseError(result.error);
+			return {
+				type: "warning",
+				title: "Cannot move commits",
+				message: description ?? message,
+			};
+		}
 	}
 
 	async ondropBranchData(data: BranchDropData): Promise<DropResult | void> {
-		const beforeAppliedStackCount = (await this.stackService.fetchStacks(this.projectId)).length;
-		const result = await this.stackService.tearOffBranch({
+		const tearOffCmd: TearOffBranchCommand = {
+			type: STACK_COMMANDS.TEAR_OFF_BRANCH,
 			projectId: this.projectId,
 			sourceStackId: data.stackId,
 			subjectBranchName: data.branchName,
-		});
-		const afterAppliedStackCount = result.workspace.headInfo.stacks.length;
-		const unappliedStackCount = Math.max(0, beforeAppliedStackCount + 1 - afterAppliedStackCount);
-		await this.updatePrDescriptions(data);
-		return toMoveBranchWarning(unappliedStackCount);
-	}
+		};
 
-	private async updatePrDescriptions(data: BranchDropData) {
-		if (this.prService === undefined) return;
-		if (data.prNumber === undefined) return;
-		if (this.baseBranchName === undefined) return;
-		const prs = [data.prNumber, ...data.allOtherPrNumbersInStack];
-
-		if (data.allOtherPrNumbersInStack.length === 1) {
-			await unstackPRs(this.prService, prs, this.baseBranchName);
-			return;
+		const result = await this.commandExecutor.execute<{ unappliedStackCount: number }>(tearOffCmd);
+		if (!result.success || !result.data) {
+			throw result.error ?? new Error("Failed to tear off branch");
 		}
 
-		await unstackPRs(this.prService, [data.prNumber], this.baseBranchName);
-		const branchDetails = await this.stackService.fetchBranches(this.projectId, data.stackId);
-		await updateStackPrs(this.prService, branchDetails, this.baseBranchName);
+		const unappliedStackCount = result.data.unappliedStackCount ?? 0;
+		return toMoveBranchWarning(unappliedStackCount);
 	}
 
 	async ondrop(data: unknown): Promise<DropResult | void> {

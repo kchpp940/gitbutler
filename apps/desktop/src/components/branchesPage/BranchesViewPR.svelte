@@ -8,6 +8,9 @@
 	import { REMOTES_SERVICE } from "$lib/git/remotesService";
 	import { workspacePath } from "$lib/routes/routes.svelte";
 	import { handleCreateBranchFromBranchOutcome } from "$lib/stacks/stack";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { CreateVirtualBranchFromBranchCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 
 	import { inject } from "@gitbutler/core/context";
@@ -33,6 +36,7 @@
 
 	const remotesService = inject(REMOTES_SERVICE);
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	let createRemoteModal = $state<Modal>();
 	let inputRemoteName = $state<string>();
@@ -66,13 +70,17 @@
 			const remoteRef = "refs/remotes/" + inputRemoteName + "/" + pr.sourceBranch;
 			await remotesService.addRemote(projectId, inputRemoteName, remoteUrl);
 			await baseBranchService.fetchFromRemotes(projectId);
-			const outcome = await stackService.createVirtualBranchFromBranch({
+			const command: CreateVirtualBranchFromBranchCommand = {
+				type: STACK_COMMANDS.CREATE_VIRTUAL_BRANCH_FROM_BRANCH,
 				projectId,
+				stackId: "",
 				branch: remoteRef,
 				prNumber,
-			});
-
-			handleCreateBranchFromBranchOutcome(outcome);
+			};
+			const result = await commandExecutor.execute(command);
+			if (result.success && result.data) {
+				handleCreateBranchFromBranchOutcome(result.data);
+			}
 			goto(workspacePath(projectId));
 		} catch (err: unknown) {
 			showError("Failed to apply forked branch", err);

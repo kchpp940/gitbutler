@@ -58,6 +58,9 @@
 	import { editPatch } from "$lib/mode/editPatchUtils";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { InsertBlankCommitCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { ensureValue } from "$lib/utils/validation";
 	import { inject, injectOptional } from "@gitbutler/core/context";
@@ -88,12 +91,12 @@
 
 	const urlService = inject(URL_SERVICE);
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
 	const modeService = injectOptional(MODE_SERVICE, undefined);
 	const diffService = inject(DIFF_SERVICE);
 	const ircApiService = inject(IRC_API_SERVICE);
 	const projectsService = inject(PROJECTS_SERVICE);
-	const [insertBlankCommitInBranch, commitInsertion] = stackService.insertBlankCommit.useMutation();
 	const [createRef, refCreation] = stackService.createReference;
 
 	const projectQuery = $derived(projectsService.getProject(projectId));
@@ -113,12 +116,15 @@
 		commitId: string,
 		location: "above" | "below" = "below",
 	) {
-		await insertBlankCommitInBranch({
+		const command: InsertBlankCommitCommand = {
+			type: STACK_COMMANDS.INSERT_BLANK_COMMIT,
 			projectId,
-			relativeTo: { type: "commit", subject: commitId },
-			side: location,
-			dryRun: false,
-		});
+			stackId,
+			branchName: "",
+			targetCommitId: commitId,
+			insertAfter: location === "below",
+		};
+		await commandExecutor.execute(command);
 	}
 
 	async function handleCreateNewRef(stackId: string, commitId: string, position: AnchorPosition) {

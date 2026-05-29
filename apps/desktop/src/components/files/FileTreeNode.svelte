@@ -1,77 +1,84 @@
 <script lang="ts">
 	import FileTreeFolder from "$components/files/FileTreeFolder.svelte";
 	import Self from "$components/files/FileTreeNode.svelte";
-	import { getAllChanges, nodePath } from "$lib/files/filetreeV3";
-	import {
-		FileChangesViewModel,
-		type FolderIntent,
-		type SelectionIntent,
-	} from "$lib/selection/fileChangesViewModel.svelte";
+	import { getAllChanges } from "$lib/files/filetreeV3";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { inject } from "@gitbutler/core/context";
 	import { TestId } from "@gitbutler/ui";
 	import type { TreeNode } from "$lib/files/filetreeV3";
+	import type { SelectionId } from "$lib/selection/key";
 	import type { TreeChange } from "@gitbutler/but-sdk";
 	import type { Snippet } from "svelte";
 
 	type Props = {
 		projectId: string;
 		stackId?: string;
-		viewModel: FileChangesViewModel;
+		selectionId: SelectionId;
 		node: TreeNode;
 		isRoot?: boolean;
 		showCheckboxes?: boolean;
 		draggableFiles?: boolean;
+		changes: TreeChange[];
 		depth?: number;
+		initiallyExpanded?: boolean;
 		fileTemplate: Snippet<[TreeChange, number, number]>;
+		active?: boolean;
 	};
 
 	let {
 		projectId,
 		stackId,
-		viewModel,
+		selectionId,
 		node,
 		isRoot = false,
 		showCheckboxes,
 		draggableFiles,
+		changes,
 		depth = 0,
 		fileTemplate,
+		active,
 	}: Props = $props();
 
-	const folderPath = $derived(node.kind === "dir" ? nodePath(node) : "");
-	const isExpanded = $derived(viewModel.isFolderExpanded(folderPath));
-	const active = $derived(viewModel.keyboardState.current.active);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 
+	// Local state to track whether the folder is expanded
+	let isExpanded = $state<boolean>(true);
+
+	// Flag to suppress keyboard-nav selection when a mouse click is in progress
 	let mouseClickPending = false;
 
+	// Handler for toggling the folder
 	function handleToggle() {
-		const intent: FolderIntent = { type: "toggle", path: folderPath };
-		viewModel.dispatchFolder(intent);
+		isExpanded = !isExpanded;
 	}
 
+	// Selects all files nested under this folder node
 	function selectFolderContents(addToSelection = false) {
 		if (node.kind !== "dir") return;
 		const folderChanges = getAllChanges(node);
 		if (folderChanges.length === 0) return;
 
-		const indexMap = new Map(viewModel.changes.map((c, i) => [c.path, i]));
+		const indexMap = new Map(changes.map((c, i) => [c.path, i]));
 
 		if (!addToSelection) {
-			viewModel.dispatchSelection({ type: "clear" });
+			idSelection.clear(selectionId);
 		}
 
 		const last = folderChanges.at(-1)!;
 		const lastIndex = indexMap.get(last.path) ?? 0;
-		const firstIndex = indexMap.get(folderChanges[0]!.path) ?? 0;
-		viewModel.dispatchSelection({
-			type: "selectRange",
-			fromIndex: firstIndex,
-			toIndex: lastIndex,
-		});
+		idSelection.addMany(
+			folderChanges.map((c) => c.path),
+			selectionId,
+			{ path: last.path, index: lastIndex },
+		);
 	}
 
+	// Handler for clicking a folder — respects modifier keys for multi-select
 	function handleFolderClick(e: MouseEvent) {
 		selectFolderContents(e.ctrlKey || e.metaKey || e.shiftKey);
 	}
 
+	// Set pending flag on mousedown so onActive skips selection during mouse clicks
 	function handleFolderMouseDown() {
 		mouseClickPending = true;
 		setTimeout(() => {
@@ -79,51 +86,46 @@
 		}, 0);
 	}
 
+	// Handles arrow-key navigation away from a folder by updating file selection
+	// before FocusManager moves focus to the next/prev item.
 	function handleFolderKeyDown(e: KeyboardEvent): boolean {
 		const folderChanges = getAllChanges(node);
 		if (folderChanges.length === 0) return false;
 
 		if ((e.key === "ArrowDown" || e.key === "j") && !e.shiftKey) {
+			// FocusManager will focus the first file in this folder next.
 			const firstFile = folderChanges[0]!;
-			const idx = viewModel.changes.findIndex((c) => c.path === firstFile.path);
+			const idx = changes.findIndex((c) => c.path === firstFile.path);
 			if (idx !== -1) {
-				const intent: SelectionIntent = {
-					type: "select",
-					path: firstFile.path,
-					index: idx,
-					modifier: "none",
-				};
-				viewModel.dispatchSelection(intent);
+				idSelection.set(firstFile.path, selectionId, idx);
 			}
 		} else if ((e.key === "ArrowUp" || e.key === "k") && !e.shiftKey) {
+			// FocusManager will focus the item before this folder next.
 			const firstFile = folderChanges[0]!;
-			const idx = viewModel.changes.findIndex((c) => c.path === firstFile.path);
+			const idx = changes.findIndex((c) => c.path === firstFile.path);
 			if (idx > 0) {
-				const prevFile = viewModel.changes[idx - 1]!;
-				const intent: SelectionIntent = {
-					type: "select",
-					path: prevFile.path,
-					index: idx - 1,
-					modifier: "none",
-				};
-				viewModel.dispatchSelection(intent);
+				const prevFile = changes[idx - 1]!;
+				idSelection.set(prevFile.path, selectionId, idx - 1);
 			}
 		}
-		return false;
+		return false; // Let FocusManager handle the actual focus movement
 	}
 </script>
 
 {#if isRoot}
+	<!-- Node is a root and should only render children! -->
 	{#each node.children as childNode (childNode.name)}
 		<Self
 			{projectId}
 			{stackId}
-			{viewModel}
+			{selectionId}
 			{depth}
 			node={childNode}
 			{showCheckboxes}
 			{draggableFiles}
+			{changes}
 			{fileTemplate}
+			{active}
 		/>
 	{/each}
 {:else if node.kind === "file"}
@@ -132,7 +134,7 @@
 	<FileTreeFolder
 		{projectId}
 		{stackId}
-		{viewModel}
+		{selectionId}
 		testId={TestId.FileListTreeFolder}
 		{depth}
 		{isExpanded}
@@ -158,12 +160,14 @@
 			<Self
 				{projectId}
 				{stackId}
-				{viewModel}
+				{selectionId}
 				depth={depth + 1}
 				node={childNode}
 				{showCheckboxes}
 				{draggableFiles}
+				{changes}
 				{fileTemplate}
+				{active}
 			/>
 		{/each}
 	{/if}

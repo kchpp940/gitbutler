@@ -1,8 +1,9 @@
 import { FileChangeDropData, FolderChangeDropData, HunkDropDataV3 } from "$lib/dragging/draggables";
-import { updateStackPrs } from "$lib/forge/shared/prFooter";
 import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 import { normalizeReferenceSubject } from "$lib/stacks/commitMovePlacement";
-import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+import type { MoveBranchCommand } from "$lib/stacks/stackCommands";
 import { UI_STATE } from "$lib/state/uiState.svelte";
 import { inject } from "@gitbutler/core/context";
 import type { DropResult } from "$lib/dragging/dropResult";
@@ -26,7 +27,7 @@ export class BranchDropData {
 }
 
 export class MoveBranchDzHandler implements DropzoneHandler {
-	private readonly stackService = inject(STACK_SERVICE);
+	private readonly commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 
 	constructor(
 		private readonly prService: ForgePrService | undefined,
@@ -49,23 +50,16 @@ export class MoveBranchDzHandler implements DropzoneHandler {
 		);
 	}
 	async ondrop(data: BranchDropData): Promise<DropResult | void> {
-		const sourceStackDeleted = data.numberOfBranchesInStack === 1;
-
-		await this.stackService.moveBranch({
+		const command: MoveBranchCommand = {
+			type: STACK_COMMANDS.MOVE_BRANCH,
 			projectId: this.projectId,
 			subjectBranch: normalizeReferenceSubject(data.branchName),
 			targetBranch: normalizeReferenceSubject(this.branchName),
-		});
+			sourceStackId: data.stackId,
+			targetStackId: this.stackId,
+		};
 
-		if (this.prService && this.baseBranchName) {
-			if (!sourceStackDeleted) {
-				const branchDetails = await this.stackService.fetchBranches(this.projectId, data.stackId);
-				await updateStackPrs(this.prService, branchDetails, this.baseBranchName);
-			}
-
-			const branchDetails = await this.stackService.fetchBranches(this.projectId, this.stackId);
-			await updateStackPrs(this.prService, branchDetails, this.baseBranchName);
-		}
+		await this.commandExecutor.execute(command);
 	}
 }
 

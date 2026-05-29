@@ -11,9 +11,12 @@
 	import { isTreeChange } from "$lib/hunks/change";
 	import { vscodePath } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-	import { UI_STATE, withStackBusy } from "$lib/state/uiState.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { UncommitChangesCommand } from "$lib/stacks/stackCommands";
+	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
 		ContextMenu,
@@ -72,9 +75,10 @@
 		onclose,
 	}: Props = $props();
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const uiState = inject(UI_STATE);
 	const defaultCodeEditor = uiState.global.defaultCodeEditor;
-	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 	const fileService = inject(FILE_SERVICE);
 	const urlService = inject(URL_SERVICE);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
@@ -135,25 +139,35 @@
 
 	async function uncommitChanges(stackId: string, commitId: string, changes: TreeChange[]) {
 		menuOpen = false;
-		await withStackBusy(uiState, projectId, { commitId, stackIds: [stackId] }, async () => {
-			const { workspace } = await stackService.uncommitChanges({
-				projectId,
-				stackId,
-				commitId,
-				changes: changesToDiffSpec(changes),
-				dryRun: false,
-			});
+
+		const command: UncommitChangesCommand = {
+			type: STACK_COMMANDS.UNCOMMIT_CHANGES,
+			projectId,
+			stackId,
+			commitId,
+			changes: changesToDiffSpec(changes),
+			dryRun: false,
+		};
+
+		const result = await commandExecutor.execute(command);
+
+		if (result.success && result.data) {
+			const { workspace } = result.data;
 			const newCommitId = workspace.replacedCommits[commitId];
-			const branchName = uiState.lane(stackId).selection.current?.branchName;
-			const movedPaths = changes.map((change) => change.path);
+			const selectedFiles = changes.map((change) => ({ ...selectionId, path: change.path }));
 
-			viewModel.removeSelectedPaths(movedPaths);
+			// Unselect the uncommitted files
+			idSelection.removeMany(selectedFiles);
 
-			if (newCommitId && branchName) {
-				const previewOpen = uiState.lane(stackId).selection.current?.previewOpen ?? false;
-				uiState.lane(stackId).selection.set({ branchName, commitId: newCommitId, previewOpen });
+			if (newCommitId) {
+				const branchName = uiState.lane(stackId).selection.current?.branchName;
+				if (branchName) {
+					const previewOpen = uiState.lane(stackId).selection.current?.previewOpen ?? false;
+					// Update the selection to the new commit
+					uiState.lane(stackId).selection.set({ branchName, commitId: newCommitId, previewOpen });
+				}
 			}
-		});
+		}
 	}
 </script>
 

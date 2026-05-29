@@ -2,8 +2,10 @@
 	import { changesToDiffSpec } from "$lib/commits/utils";
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { isTreeChange } from "$lib/hunks/change";
-	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
-	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { DiscardChangesCommand } from "$lib/stacks/stackCommands";
 	import { inject } from "@gitbutler/core/context";
 	import { AsyncButton, Button, FileListItem, Modal, TestId } from "@gitbutler/ui";
 	import type { SelectionId } from "$lib/selection/key";
@@ -36,8 +38,8 @@
 
 	const { projectId, selectionId }: Props = $props();
 
-	const stackService = inject(STACK_SERVICE);
-	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 
 	let modal: ReturnType<typeof Modal> | undefined;
 
@@ -46,13 +48,15 @@
 	}
 
 	async function confirmDiscard(item: ChangedFilesItem) {
-		await stackService.discardChanges({
+		const command: DiscardChangesCommand = {
+			type: STACK_COMMANDS.DISCARD_CHANGES,
 			projectId,
 			worktreeChanges: changesToDiffSpec(item.changes),
-		});
+		};
+		await commandExecutor.execute(command);
 
-		const movedPaths = item.changes.map((change) => change.path);
-		viewModel.removeSelectedPaths(movedPaths);
+		const selectedFiles = item.changes.map((change) => ({ ...selectionId, path: change.path }));
+		idSelection.removeMany(selectedFiles);
 
 		modal?.close();
 	}

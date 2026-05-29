@@ -7,12 +7,9 @@
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { getFilename } from "$lib/files/utils";
 	import { targetEqual } from "$lib/hunks/dependencies";
-	import {
-		FileChangesViewModel,
-		FILE_CHANGES_VIEW_MODEL,
-		type HunkSelectionIntent,
-	} from "$lib/selection/fileChangesViewModel.svelte";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { key, type SelectionId } from "$lib/selection/key";
+	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { getStackName } from "$lib/stacks/stack";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
@@ -46,7 +43,6 @@
 		onclick?: (e: MouseEvent) => void;
 		onkeydown?: (e: KeyboardEvent) => void;
 		conflictEntries?: ConflictEntriesObj;
-		viewModel?: FileChangesViewModel;
 	}
 
 	const {
@@ -71,10 +67,10 @@
 		ircWorkingUsers,
 		onclick,
 		onkeydown,
-		viewModel: propViewModel,
 	}: Props = $props();
 
-	const viewModel = propViewModel ?? inject(FILE_CHANGES_VIEW_MODEL);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const dropzoneRegistry = inject(DROPZONE_REGISTRY);
 	const dragStateService = inject(DRAG_STATE_SERVICE);
 	const stackService = inject(STACK_SERVICE);
@@ -90,21 +86,20 @@
 	);
 
 	function onCheck(checked: boolean) {
-		const intent: HunkSelectionIntent = checked
-			? { type: "checkFile", path: change.path }
-			: { type: "uncheckFile", path: change.path };
-		viewModel.dispatchHunkSelection(intent);
+		if (checked) {
+			uncommittedService.checkFile(stackId || null, change.path);
+		} else {
+			uncommittedService.uncheckFile(stackId || null, change.path);
+		}
 	}
 
-	const checkStatus = $derived({
-		current: viewModel.getFileCheckStatus(change.path),
-	});
+	const checkStatus = $derived(
+		uncommittedService.fileCheckStatus(stackId || undefined, change.path),
+	);
 
 	async function onContextMenu(e: MouseEvent) {
-		const selectedFiles = viewModel.selection.current.selectedFiles;
-		const paths = selectedFiles.map((f) => f.path);
-		const changes = viewModel.changes.filter((c) => paths.includes(c.path));
-		if (viewModel.isSelected(change.path) && changes.length > 0) {
+		const changes = await idSelection.treeChanges(projectId, selectionId);
+		if (idSelection.has(change.path, selectionId) && changes.length > 0) {
 			contextMenu?.open(e, { changes });
 			return;
 		}
@@ -160,7 +155,7 @@
 	use:draggableChips={{
 		label: getFilename(change.path),
 		filePath: change.path,
-		data: new FileChangeDropData(projectId, change, viewModel, selectionId, stackId || undefined),
+		data: new FileChangeDropData(projectId, change, idSelection, selectionId, stackId || undefined),
 		disabled: draggableDisabled,
 		chipType: "file",
 		dropzoneRegistry,

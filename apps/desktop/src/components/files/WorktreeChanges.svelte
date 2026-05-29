@@ -11,19 +11,11 @@
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
 	import { IRC_API_SERVICE } from "$lib/irc/ircApiService";
 	import { WORKING_FILES_BROADCAST } from "$lib/irc/workingFilesBroadcast.svelte";
+	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createWorktreeSelection } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject, injectOptional } from "@gitbutler/core/context";
-	import { getContext, hasContext } from "svelte";
-	import { createBranchRef } from "$lib/branches/branchUtils";
-	import { WORKTREE_SERVICE } from "$lib/worktree/worktreeService.svelte";
-	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-	import { HISTORY_SERVICE } from "$lib/history/history";
-	import {
-		FILE_CHANGES_VIEW_MODEL,
-		FileChangesViewModel,
-	} from "$lib/selection/fileChangesViewModel.svelte";
 
 	import { Badge, TestId } from "@gitbutler/ui";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
@@ -36,7 +28,6 @@
 		stackId?: string;
 		title: string;
 		mode?: "unassigned" | "assigned";
-		viewModel?: FileChangesViewModel;
 		onDropzoneActivated?: (activated: boolean) => void;
 		onDropzoneHovered?: (hovered: boolean) => void;
 		emptyPlaceholder?: Snippet;
@@ -53,7 +44,6 @@
 		stackId,
 		title,
 		mode = "unassigned",
-		viewModel,
 		onDropzoneActivated,
 		onDropzoneHovered,
 		emptyPlaceholder,
@@ -71,9 +61,7 @@
 	const diffService = inject(DIFF_SERVICE);
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const uiState = inject(UI_STATE);
-	const worktreeService = inject(WORKTREE_SERVICE);
-	const stackService = inject(STACK_SERVICE);
-	const historyService = inject(HISTORY_SERVICE);
+	const idSelection = inject(FILE_SELECTION_MANAGER);
 	const ircApiService = injectOptional(IRC_API_SERVICE, undefined);
 	const workingFilesBroadcast = injectOptional(WORKING_FILES_BROADCAST, undefined);
 
@@ -99,40 +87,12 @@
 
 	const changes = $derived(uncommittedService.changesByStackId(stackId || null));
 
-	// Resolve viewModel (from props, context, or create new)
-	function resolveViewModel(): FileChangesViewModel {
-		if (viewModel) return viewModel;
-		if (hasContext(FILE_CHANGES_VIEW_MODEL)) {
-			return getContext(FILE_CHANGES_VIEW_MODEL);
-		}
-		return new FileChangesViewModel({
-			selectionId,
-			getChanges: () => changes.current,
-			stackId,
-			hunkStore: uncommittedService.createHunkSelectionStore(stackId || null),
-			services: {
-				worktreeService,
-				stackService,
-				historyService,
-				uncommittedService,
-			},
-		});
-	}
-
-	const resolvedViewModel = resolveViewModel();
-
 	let listMode: "list" | "tree" = $state("list");
 
 	let scrollTopIsVisible = $state(true);
 
 	const assignmentDZHandler = $derived(
-		new AssignmentDropHandler(
-			projectId,
-			diffService,
-			uncommittedService,
-			stackId,
-			resolvedViewModel,
-		),
+		new AssignmentDropHandler(projectId, diffService, uncommittedService, stackId, idSelection),
 	);
 
 	function getDropzoneLabel(handler: DropzoneHandler | undefined): string {
@@ -147,7 +107,7 @@
 </script>
 
 {#snippet fileList()}
-	<FileListProvider changes={changes.current} {selectionId} viewModel={resolvedViewModel}>
+	<FileListProvider changes={changes.current} {selectionId}>
 		<FileListItems
 			{projectId}
 			{stackId}

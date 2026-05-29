@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { CLIPBOARD_SERVICE } from "$lib/backend/clipboard";
+	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
+	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
+	import type { AbsorbCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
@@ -24,8 +27,8 @@
 	const { projectId, stackId }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
-	const [absorb, absorbingChanges] = stackService.absorb;
 
 	let modal = $state<ReturnType<typeof Modal> | undefined>();
 	let absorbPlan = $state<CommitAbsorption[]>([]);
@@ -65,11 +68,12 @@
 	testId={TestId.AbsobModal}
 	onSubmit={async () => {
 		try {
-			await chipToasts.promise(absorb({ projectId, absorptionPlan: absorbPlan }), {
-				loading: "Absorbing changes",
-				success: "Changes absorbed successfully",
-				error: "Failed to absorb changes",
-			});
+			const command: AbsorbCommand = {
+				type: STACK_COMMANDS.ABSORB,
+				projectId,
+				stackId: stackId ?? "",
+			};
+			await commandExecutor.execute(command);
 			modal?.close();
 		} catch (error) {
 			console.error("Failed to absorb changes:", error);
@@ -138,8 +142,7 @@
 		<Button
 			style="pop"
 			type="submit"
-			loading={absorbingChanges.current.isLoading}
-			disabled={absorbPlan.length === 0 || absorbingChanges.current.isLoading}
+			disabled={absorbPlan.length === 0}
 			testId={TestId.AbsorbModal_ActionButton}
 		>
 			Absorb changes

@@ -6,7 +6,7 @@ import {
 } from "$lib/dragging/draggables";
 import { type DiffService } from "$lib/hunks/diffService.svelte";
 import type { DropzoneHandler } from "$lib/dragging/handler";
-import type { FileChangesViewModel } from "$lib/selection/fileChangesViewModel.svelte";
+import type { FileSelectionManager } from "$lib/selection/fileSelectionManager.svelte";
 import type { UncommittedService } from "$lib/selection/uncommittedService.svelte";
 import type { HunkAssignmentTarget } from "@gitbutler/but-sdk";
 
@@ -16,7 +16,7 @@ export class AssignmentDropHandler implements DropzoneHandler {
 		private readonly diffService: DiffService,
 		private readonly uncommittedService: UncommittedService,
 		private readonly stackId: string | undefined,
-		private readonly viewModel: FileChangesViewModel,
+		private readonly idSelection: FileSelectionManager,
 	) {}
 
 	private get assignmentTarget(): HunkAssignmentTarget | null {
@@ -43,6 +43,7 @@ export class AssignmentDropHandler implements DropzoneHandler {
 	async ondrop(data: ChangeDropData | HunkDropDataV3) {
 		if (data.stackId === this.stackId) return;
 		if (data instanceof FileChangeDropData) {
+			// A whole file (or multiple files if they're part of a selection).
 			const changes = await data.treeChanges();
 			const assignments = changes
 				.flatMap((c) => this.uncommittedService.getAssignmentsByPath(data.stackId || null, c.path))
@@ -56,10 +57,13 @@ export class AssignmentDropHandler implements DropzoneHandler {
 				assignments,
 			});
 
-			const movedPaths = changes.map((change) => change.path);
-			this.viewModel.removeSelectedPaths(movedPaths);
-			this.viewModel.clearPreview();
+			// Remove all moved files from the selection
+			const movedFiles = changes.map((change) => ({ ...data.selectionId, path: change.path }));
+			this.idSelection.removeMany(movedFiles);
+			// Clear the preview to avoid showing a file that's been moved
+			this.idSelection.clearPreview(data.selectionId);
 		} else if (data instanceof FolderChangeDropData) {
+			// A whole folder.
 			const changes = await data.treeChanges();
 			const assignments = changes
 				.flatMap((c) => this.uncommittedService.getAssignmentsByPath(data.stackId || null, c.path))
@@ -73,9 +77,11 @@ export class AssignmentDropHandler implements DropzoneHandler {
 				assignments,
 			});
 
-			const movedPaths = changes.map((change) => change.path);
-			this.viewModel.removeSelectedPaths(movedPaths);
-			this.viewModel.clearPreview();
+			// Remove all moved files from the selection
+			const movedFiles = changes.map((change) => ({ ...data.selectionId, path: change.path }));
+			this.idSelection.removeMany(movedFiles);
+			// Clear the preview to avoid showing a file that's been moved
+			this.idSelection.clearPreview(data.selectionId);
 		} else {
 			const assignment = this.uncommittedService.getAssignmentByHeader(
 				data.stackId,
@@ -97,9 +103,11 @@ export class AssignmentDropHandler implements DropzoneHandler {
 				],
 			});
 
+			// If we just moved the last assignment, remove the file from the selection.
 			if (allAssignments.length === 1) {
-				this.viewModel.removeSelectedPaths([data.change.path]);
-				this.viewModel.clearPreview();
+				this.idSelection.remove(data.change.path, data.selectionId);
+				// Clear the preview to avoid showing a file that's been moved
+				this.idSelection.clearPreview(data.selectionId);
 			}
 		}
 	}
