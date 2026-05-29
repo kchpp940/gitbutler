@@ -18,11 +18,7 @@
 					// User cancelled the project creation
 					return;
 				}
-				handleAddProjectOutcome(
-					outcome,
-					(project) => projectsService.switchToProject(project.id),
-					(projectId) => projectsService.switchToProject(projectId),
-				);
+				handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
 			}),
 			shortcutService.on("clone-repo", async () => {
 				goto(clonePath());

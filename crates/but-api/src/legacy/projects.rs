@@ -175,23 +175,6 @@ pub fn is_gerrit(ctx: &but_ctx::Context) -> Result<bool> {
     gitbutler_project::gerrit::is_used_by_default_remote(&*ctx.repo.get()?)
 }
 
-#[but_api]
-#[instrument(err(Debug))]
-pub fn get_project_ui_state(
-    project_id: but_ctx::ProjectHandleOrLegacyProjectId,
-) -> Result<Option<gitbutler_project::ui_state::ProjectUiState>> {
-    gitbutler_project::ui_state::read_ui_state(project_id)
-}
-
-#[but_api]
-#[instrument(err(Debug))]
-pub fn set_project_ui_state(
-    project_id: but_ctx::ProjectHandleOrLegacyProjectId,
-    state: gitbutler_project::ui_state::ProjectUiState,
-) -> Result<()> {
-    gitbutler_project::ui_state::write_ui_state(project_id, &state)
-}
-
 #[derive(serde::Serialize)]
 #[cfg_attr(feature = "export-schema", derive(schemars::JsonSchema))]
 pub struct ProjectForFrontend {

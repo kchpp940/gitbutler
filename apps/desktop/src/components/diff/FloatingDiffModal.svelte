@@ -163,7 +163,6 @@
 					/>
 					<AppScrollableContainer>
 						<FileTreeList
-							{projectId}
 							{changes}
 							{listMode}
 							{selectedIndex}

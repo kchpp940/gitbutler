@@ -33,8 +33,7 @@
 
 	$effect(() => {
 		if (redirect.type === "redirect") {
-			const projectId = redirect.subject.replace(/^\//, "");
-			projectsService.switchToProjectWithScene(projectId, "initial-load");
+			goto(redirect.subject);
 		} else if (redirect.type === "no-projects") {
 			goto("/onboarding");
 		}

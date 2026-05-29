@@ -17,6 +17,7 @@
 	import { abbreviateFolders, changesToFileTree } from "$lib/files/filetreeV3";
 	import { isExecutableStatus } from "$lib/hunks/change";
 	import { getLockedCommitIds, getLockedTargets, isFileLocked } from "$lib/hunks/dependencies";
+	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
 	import {
 		getFileListContext,
 		type FileListKeyHandler,
@@ -64,6 +65,7 @@
 	const controller = getFileListContext();
 	const dependencyService = inject(DEPENDENCY_SERVICE);
 	const focusManager = inject(FOCUS_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 
 	/** Invert nick→paths map to path→nicks for per-file lookup. */
 	const ircWorkingUsersByPath = $derived.by(() => {
@@ -120,6 +122,7 @@
 		executable={isExecutable}
 		showCheckbox={showCheckboxes}
 		ircWorkingUsers={ircWorkingUsersByPath?.get(change.path)}
+		{viewModel}
 		focusableOpts={{
 			onKeydown: (e) => {
 				// 1. Activation keys (Enter/Space/l)
@@ -200,17 +203,16 @@
 	{#if controller.changes.length > 0}
 		{#if mode === "tree"}
 			{@const node = abbreviateFolders(changesToFileTree(controller.changes))}
+			{@const viewModel = inject(FILE_CHANGES_VIEW_MODEL)}
 			<FileTreeNode
 				isRoot
 				{projectId}
-				selectionId={controller.selectionId}
+				{viewModel}
 				{stackId}
 				{node}
 				{showCheckboxes}
 				draggableFiles={draggable}
-				changes={controller.changes}
 				{fileTemplate}
-				active={controller.active}
 			/>
 		{:else}
 			<LazyList items={controller.changes} chunkSize={100}>

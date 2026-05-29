@@ -5,7 +5,7 @@
 	import { DROPZONE_REGISTRY } from "$lib/dragging/registry";
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { getFilename } from "$lib/files/utils";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
 	import { type SelectionId } from "$lib/selection/key";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -39,7 +39,7 @@
 		onCloseClick,
 	}: Props = $props();
 
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 	const dropzoneRegistry = inject(DROPZONE_REGISTRY);
 	const dragStateService = inject(DRAG_STATE_SERVICE);
 	const uiState = inject(UI_STATE);
@@ -65,8 +65,9 @@
 	});
 
 	async function onContextMenu(e: MouseEvent) {
-		const changes = await idSelection.treeChanges(projectId, selectionId);
-		if (idSelection.has(change.path, selectionId) && changes.length > 0) {
+		const changes = await viewModel.treeChanges(projectId);
+		const hasSelected = viewModel.isSelected(change.path) && changes.length > 0;
+		if (hasSelected) {
 			contextMenu?.open(e, { changes });
 			return;
 		}
@@ -83,7 +84,7 @@
 	use:draggableChips={{
 		label: getFilename(change.path),
 		filePath: change.path,
-		data: new FileChangeDropData(projectId, change, idSelection, selectionId, stackId || undefined),
+		data: new FileChangeDropData(projectId, change, viewModel, selectionId, stackId || undefined),
 		disabled: !draggable,
 		chipType: "file",
 		dropzoneRegistry,

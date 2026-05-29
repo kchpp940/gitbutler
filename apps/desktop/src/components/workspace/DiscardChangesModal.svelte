@@ -2,7 +2,7 @@
 	import { changesToDiffSpec } from "$lib/commits/utils";
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { isTreeChange } from "$lib/hunks/change";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { AsyncButton, Button, FileListItem, Modal, TestId } from "@gitbutler/ui";
@@ -37,7 +37,7 @@
 	const { projectId, selectionId }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 
 	let modal: ReturnType<typeof Modal> | undefined;
 
@@ -51,8 +51,8 @@
 			worktreeChanges: changesToDiffSpec(item.changes),
 		});
 
-		const selectedFiles = item.changes.map((change) => ({ ...selectionId, path: change.path }));
-		idSelection.removeMany(selectedFiles);
+		const movedPaths = item.changes.map((change) => change.path);
+		viewModel.removeSelectedPaths(movedPaths);
 
 		modal?.close();
 	}

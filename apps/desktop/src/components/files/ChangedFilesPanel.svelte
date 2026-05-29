@@ -68,9 +68,7 @@
 		const id = readStableSelectionKey(stringSelectionKey);
 		const selection = idSelection.getById(id);
 		if (firstChangePath && autoselect && selection.entries.size === 0) {
-			if (!idSelection.checkAndClearSkipAutoselect(id)) {
-				idSelection.set(firstChangePath, selectionId, 0);
-			}
+			idSelection.set(firstChangePath, selectionId, 0);
 		}
 	});
 </script>

@@ -10,10 +10,6 @@ import ClipboardService, { CLIPBOARD_SERVICE } from "$lib/backend/clipboard";
 import URLService, { URL_SERVICE } from "$lib/backend/url";
 import BaseBranchService, { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 import { BranchService, BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
-import {
-	BranchesSelectionStore,
-	BRANCHES_SELECTION_STORE,
-} from "$lib/branches/branchesSelectionStore.svelte";
 import CLIManager, { CLI_MANAGER } from "$lib/config/cli";
 import { GIT_CONFIG_SERVICE, GitConfigService } from "$lib/config/gitConfigService";
 import DependencyService, { DEPENDENCY_SERVICE } from "$lib/dependencies/dependencyService.svelte";
@@ -23,10 +19,6 @@ import {
 	ReorderDropzoneFactory,
 } from "$lib/dragging/stackingReorderDropzoneManager";
 import { FILE_SERVICE, FileService } from "$lib/files/fileService";
-import {
-	FolderExpandedStateStore,
-	FOLDER_EXPANDED_STORE,
-} from "$lib/files/folderExpandedState.svelte";
 import { ResizeSync, RESIZE_SYNC } from "$lib/floating/resizeSync";
 import { DefaultForgeFactory, DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 import { GITHUB_CLIENT, GitHubClient } from "$lib/forge/github/githubClient";
@@ -47,11 +39,6 @@ import {
 } from "$lib/irc/workingFilesBroadcast.svelte";
 import { ModeService, MODE_SERVICE } from "$lib/mode/modeService";
 import { ProjectsService, PROJECTS_SERVICE } from "$lib/project/projectsService";
-import {
-	ProjectUiStateService,
-	PROJECT_UI_STATE_SERVICE,
-	createProjectUiStateService,
-} from "$lib/project/projectUiStateService.svelte";
 import { PROMPT_SERVICE, PromptService } from "$lib/prompt/promptService";
 import RulesService, { RULES_SERVICE } from "$lib/rules/rulesService.svelte";
 import { RustSecretService, SECRET_SERVICE } from "$lib/secrets/secretsService";
@@ -253,17 +240,6 @@ export function initDependencies(args: {
 	// PROJECT & DEPENDENCY MANAGEMENT
 	// ============================================================================
 
-	const folderExpandedStore = new FolderExpandedStateStore();
-	const branchesSelectionStore = new BranchesSelectionStore();
-
-	const projectUiStateService = createProjectUiStateService(
-		clientState.backendApi,
-		uiState,
-		fileSelectionManager,
-		folderExpandedStore,
-		branchesSelectionStore,
-	);
-
 	const dependencyService = new DependencyService(worktreeService);
 
 	// ============================================================================
@@ -335,7 +311,6 @@ export function initDependencies(args: {
 		[APP_STATE, appState],
 		[BACKEND, backend],
 		[BASE_BRANCH_SERVICE, baseBranchService],
-		[BRANCHES_SELECTION_STORE, branchesSelectionStore],
 		[BRANCH_SERVICE, branchService],
 		[CHERRY_APPLY_SERVICE, cherryApplyService],
 		[CLIENT_STATE, clientState],
@@ -352,7 +327,6 @@ export function initDependencies(args: {
 		[EVENT_CONTEXT, eventContext],
 		[FEED_SERVICE, feedService],
 		[FILE_SERVICE, fileService],
-		[FOLDER_EXPANDED_STORE, folderExpandedStore],
 		[FOCUS_MANAGER, focusManager],
 		[GITHUB_CLIENT, gitHubClient],
 		[GITHUB_USER_SERVICE, githubUserService],
@@ -371,7 +345,6 @@ export function initDependencies(args: {
 		[ORGANIZATION_SERVICE, organizationService],
 		[POSTHOG_WRAPPER, posthog],
 		[PROJECTS_SERVICE, projectsService],
-		[PROJECT_UI_STATE_SERVICE, projectUiStateService],
 		[PROMPT_SERVICE, promptService],
 		[REMOTES_SERVICE, remotesService],
 		[RESIZE_SYNC, resizeSync],

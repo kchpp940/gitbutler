@@ -4,6 +4,7 @@
 	import SelectionView from "$components/diff/SelectionView.svelte";
 	import CreateSnapshotModal from "$components/history/CreateSnapshotModal.svelte";
 	import SnapshotCard from "$components/history/SnapshotCard.svelte";
+	import LegacyFileChangesViewModel from "$components/legacy/LegacyFileChangesViewModel.svelte";
 	import ScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
 	import AppScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
 	import FullviewLoading from "$components/shared/FullviewLoading.svelte";
@@ -18,6 +19,7 @@
 	import { EmptyStatePlaceholder, Icon, Button } from "@gitbutler/ui";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
 	import type { Snapshot } from "$lib/history/types";
+	import type { TreeChange } from "@gitbutler/but-sdk";
 
 	// TODO: Refactor so we don't need non-null assertion.
 	const projectId = $derived(page.params.projectId!);
@@ -200,10 +202,16 @@
 		</div>
 
 		<div class="history-view__preview dotted-pattern" use:focusable>
-			{#if selectedFile}
+			{#if selectedFile && currentSelectionId}
 				<div class="history-view__preview-file">
 					<AppScrollableContainer bind:viewport={scrollContainer}>
-						<SelectionView {projectId} {scrollContainer} selectionId={currentSelectionId} />
+						<LegacyFileChangesViewModel
+							selectionId={currentSelectionId}
+							getChanges={(): TreeChange[] => []}
+							{projectId}
+						>
+							<SelectionView {projectId} {scrollContainer} />
+						</LegacyFileChangesViewModel>
 					</AppScrollableContainer>
 				</div>
 			{:else}

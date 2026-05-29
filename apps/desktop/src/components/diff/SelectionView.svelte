@@ -5,13 +5,11 @@
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import { isExecutableStatus } from "$lib/hunks/change";
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
-	import { readKey, type SelectionId } from "$lib/selection/key";
+	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
 	import { inject } from "@gitbutler/core/context";
 
 	type Props = {
 		projectId: string;
-		selectionId?: SelectionId;
 		draggableFiles?: boolean;
 		diffOnly?: boolean;
 		onclose?: () => void;
@@ -22,7 +20,6 @@
 
 	let {
 		projectId,
-		selectionId,
 		draggableFiles: draggable,
 		diffOnly,
 		onclose,
@@ -31,29 +28,21 @@
 		bottomBorder,
 	}: Props = $props();
 
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 	const diffService = inject(DIFF_SERVICE);
 
-	const selection = $derived(selectionId ? idSelection.valuesReactive(selectionId) : undefined);
-	const lastAdded = $derived(selectionId ? idSelection.getById(selectionId).lastAdded : undefined);
-
-	const selectedFile = $derived.by(() => {
-		if (!selectionId || !selection) return;
-		if (selection.current.length === 0) return;
-		if (selection.current.length === 1 || !$lastAdded) return selection.current[0];
-		return readKey($lastAdded.key);
-	});
+	const selectedFile = $derived(viewModel.preview.current.previewFile);
 
 	const stackId = $derived(
-		selectionId && `stackId` in selectionId ? selectionId.stackId : undefined,
+		selectedFile && `stackId` in selectedFile ? selectedFile.stackId : undefined,
 	);
 
-	const selectable = $derived(selectionId?.type === "worktree");
+	const selectable = $derived(selectedFile?.type === "worktree");
+	const changeQuery = $derived(selectedFile ? viewModel.changeByKey(projectId, selectedFile) : undefined);
 </script>
 
 <div class="selection-view" data-testid={testId}>
-	{#if selectedFile}
-		{@const changeQuery = idSelection.changeByKey(projectId, selectedFile)}
+	{#if selectedFile && changeQuery}
 		<ReduxResult {projectId} result={changeQuery.result}>
 			{#snippet children(change)}
 				{@const diffQuery = diffService.getDiff(projectId, change)}

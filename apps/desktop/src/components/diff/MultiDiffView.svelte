@@ -17,7 +17,10 @@
 	import { computeChangeStatus } from "$lib/files/fileStatus";
 	import { isExecutableStatus } from "$lib/hunks/change";
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import {
+		FILE_CHANGES_VIEW_MODEL,
+		type FileChangesViewModel,
+	} from "$lib/selection/fileChangesViewModel.svelte";
 	import { type SelectionId } from "$lib/selection/key";
 	import { ScrollSelectionLock } from "$lib/selection/scrollSelectionLock.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
@@ -55,19 +58,17 @@
 	}: Props = $props();
 
 	const diffService = inject(DIFF_SERVICE);
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 	const uiState = inject(UI_STATE);
 
 	const allInOneDiff = $derived(uiState.global.allInOneDiff.current);
 	const highlightDiffs = $derived(uiState.global.highlightDiffs.current);
 
-	// Not reactive by design — feeds `defaultCollapsed` as an initial value only,
-	// so Svelte does not need to track mutations. Persists across VirtualList recycles.
 	const diffExpandedState = new Map<string, boolean>();
 
 	function getInitialLockedIndex() {
 		if (startIndex === undefined) return undefined;
-		return idSelection.collectionSize(selectionId) > 0 ? startIndex : undefined;
+		return viewModel.selection.current.hasSelection ? startIndex : undefined;
 	}
 
 	let virtualList = $state<VirtualList<TreeChange>>();
@@ -150,8 +151,9 @@
 						contextMenu.close();
 						return;
 					}
-					const changes = await idSelection.treeChanges(projectId, selectionId);
-					if (idSelection.has(change.path, selectionId) && changes.length > 0) {
+					const changes = await viewModel.treeChanges(projectId);
+					const hasSelected = viewModel.isSelected(change.path) && changes.length > 0;
+					if (hasSelected) {
 						contextMenu.open(e.target, { changes });
 					} else {
 						contextMenu.open(e.target, { changes: [change] });
@@ -232,14 +234,18 @@
 
 						highlightedIndex = activeIndex;
 						const activeChange = changes[activeIndex];
-						const selectionSize = idSelection.collectionSize(selectionId);
+						const selectionSize = viewModel.selection.current.selectedPaths.size;
 						const shouldFollowScrollSelection = selectionSize <= 1;
-						if (
-							activeChange &&
-							shouldFollowScrollSelection &&
-							!idSelection.has(activeChange.path, selectionId)
-						) {
-							idSelection.set(activeChange.path, selectionId, activeIndex);
+						const isSelected = activeChange
+							? viewModel.isSelected(activeChange.path)
+							: false;
+						if (activeChange && shouldFollowScrollSelection && !isSelected) {
+							viewModel.dispatchSelection({
+								type: "select",
+								path: activeChange.path,
+								index: activeIndex,
+								modifier: "none",
+							});
 						}
 					}
 					onVisibleChange?.(range);

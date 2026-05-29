@@ -11,7 +11,7 @@
 	import { isTreeChange } from "$lib/hunks/change";
 	import { vscodePath } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { FILE_CHANGES_VIEW_MODEL } from "$lib/selection/fileChangesViewModel.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { UI_STATE, withStackBusy } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -74,7 +74,7 @@
 	const stackService = inject(STACK_SERVICE);
 	const uiState = inject(UI_STATE);
 	const defaultCodeEditor = uiState.global.defaultCodeEditor;
-	const idSelection = inject(FILE_SELECTION_MANAGER);
+	const viewModel = inject(FILE_CHANGES_VIEW_MODEL);
 	const fileService = inject(FILE_SERVICE);
 	const urlService = inject(URL_SERVICE);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
@@ -145,14 +145,12 @@
 			});
 			const newCommitId = workspace.replacedCommits[commitId];
 			const branchName = uiState.lane(stackId).selection.current?.branchName;
-			const selectedFiles = changes.map((change) => ({ ...selectionId, path: change.path }));
+			const movedPaths = changes.map((change) => change.path);
 
-			// Unselect the uncommitted files
-			idSelection.removeMany(selectedFiles);
+			viewModel.removeSelectedPaths(movedPaths);
 
 			if (newCommitId && branchName) {
 				const previewOpen = uiState.lane(stackId).selection.current?.previewOpen ?? false;
-				// Update the selection to the new commit
 				uiState.lane(stackId).selection.set({ branchName, commitId: newCommitId, previewOpen });
 			}
 		});

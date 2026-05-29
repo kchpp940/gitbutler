@@ -134,11 +134,11 @@
 				options={mappedProjects}
 				loading={newProjectLoading}
 				disabled={newProjectLoading}
-				onselect={async (value: string, modifiers?) => {
+				onselect={(value: string, modifiers?) => {
 					if (modifiers?.meta) {
 						projectsService.openProjectInNewWindow(value);
-					} else if (projectId && value !== projectId) {
-						await projectsService.switchProject(projectId, value);
+					} else {
+						goto(projectPath(value));
 					}
 				}}
 				ontoggle={(isOpen) => (projectSelectorOpen = isOpen)}
@@ -186,11 +186,7 @@
 										return;
 									}
 
-									handleAddProjectOutcome(
-									outcome,
-									(project) => projectsService.switchToProject(project.id),
-									(projectId) => projectsService.switchToProject(projectId),
-								);
+									handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
 								} finally {
 									newProjectLoading = false;
 								}

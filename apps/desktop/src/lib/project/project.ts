@@ -76,7 +76,6 @@ export type AddProjectOutcome =
 export function handleAddProjectOutcome(
 	outcome: AddProjectOutcome,
 	onAdded?: (project: Project) => void,
-	onSwitchToProject?: (projectId: string) => void,
 ): true {
 	switch (outcome.type) {
 		case "added":
@@ -92,11 +91,7 @@ export function handleAddProjectOutcome(
 					label: "Open project",
 					testId: TestId.AddProjectAlreadyExistsModalOpenProjectButton,
 					onClick: (dismiss) => {
-						if (onSwitchToProject) {
-							onSwitchToProject(outcome.subject.id);
-						} else {
-							goto(projectPath(outcome.subject.id));
-						}
+						goto(projectPath(outcome.subject.id));
 						dismiss();
 					},
 				},

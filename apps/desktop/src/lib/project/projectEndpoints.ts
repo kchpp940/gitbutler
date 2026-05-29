@@ -14,29 +14,6 @@ export type ServerCapabilities = {
 	canAddProjects: boolean;
 };
 
-export type PrPanelState = {
-	open: boolean;
-	prNumber: number | null;
-};
-
-export type SettingsPanelState = {
-	open: boolean;
-	pageId: string | null;
-};
-
-export type ProjectUiState = {
-	route: string;
-	selectedStackId: string | null;
-	selectedFiles: string[];
-	expandedDirectories: string[];
-	prPanel: PrPanelState;
-	settingsPanel: SettingsPanelState;
-	updatedAt: {
-		secsSinceEpoch: number;
-		nanosSinceEpoch: number;
-	};
-};
-
 export function buildProjectEndpoints(build: BackendEndpointBuilder) {
 	return {
 		serverCapabilities: build.query<ServerCapabilities, void>({
@@ -91,14 +68,6 @@ export function buildProjectEndpoints(build: BackendEndpointBuilder) {
 		}),
 		oplogDiffWorktrees: build.query<TreeChanges, { projectId: string; snapshotId: string }>({
 			extraOptions: { command: "oplog_diff_worktrees" },
-			query: (args) => args,
-		}),
-		getProjectUiState: build.query<ProjectUiState | null, { projectId: string }>({
-			extraOptions: { command: "get_project_ui_state" },
-			query: (args) => args,
-		}),
-		setProjectUiState: build.mutation<void, { projectId: string; state: ProjectUiState }>({
-			extraOptions: { command: "set_project_ui_state" },
 			query: (args) => args,
 		}),
 	};

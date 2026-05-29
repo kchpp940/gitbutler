@@ -4,7 +4,6 @@ mod default_true;
 pub mod gerrit;
 mod project;
 mod storage;
-pub mod ui_state;
 
 use std::path::Path;
 

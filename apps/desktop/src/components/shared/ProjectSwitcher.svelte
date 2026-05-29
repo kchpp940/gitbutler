@@ -15,7 +15,6 @@
 	const canAddProjects = $derived(serverCapabilitiesQuery.response?.canAddProjects ?? true);
 
 	let selectedId = $state<string | undefined>(untrack(() => projectId));
-	let isSwitching = $state(false);
 
 	const mappedProjects = $derived(
 		projectsQuery.response?.map((project) => ({
@@ -59,11 +58,7 @@
 								newProjectLoading = false;
 								return;
 							}
-							handleAddProjectOutcome(
-								outcome,
-								(project) => projectsService.switchToProject(project.id),
-								(projectId) => projectsService.switchToProject(projectId),
-							);
+							handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
 						} finally {
 							newProjectLoading = false;
 						}
@@ -92,19 +87,9 @@
 	<Button
 		style="pop"
 		icon="chevron-right"
-		disabled={selectedId === projectId || isSwitching}
-		loading={isSwitching}
-		onclick={async () => {
-			if (selectedId && projectId && selectedId !== projectId) {
-				isSwitching = true;
-				try {
-					await projectsService.switchProject(projectId, selectedId);
-				} finally {
-					isSwitching = false;
-				}
-			} else if (selectedId) {
-				goto(projectPath(selectedId));
-			}
+		disabled={selectedId === projectId}
+		onclick={() => {
+			if (selectedId) goto(projectPath(selectedId));
 		}}
 	>
 		Open project

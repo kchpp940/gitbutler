@@ -4,18 +4,17 @@
 	import { FolderChangeDropData } from "$lib/dragging/draggables";
 	import { DROPZONE_REGISTRY } from "$lib/dragging/registry";
 	import { getAllChanges, nodePath, type TreeNode } from "$lib/files/filetreeV3";
-	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
+	import { FileChangesViewModel } from "$lib/selection/fileChangesViewModel.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { FolderListItem } from "@gitbutler/ui";
 	import { DRAG_STATE_SERVICE } from "@gitbutler/ui/drag/dragStateService.svelte";
-	import type { SelectionId } from "$lib/selection/key";
 	import type { FocusableOptions } from "@gitbutler/ui/focus/focusTypes";
 
 	type Props = {
 		projectId: string;
 		stackId?: string;
-		selectionId: SelectionId;
+		viewModel: FileChangesViewModel;
 		node: TreeNode & { kind: "dir" };
 		depth: number;
 		showCheckbox?: boolean;
@@ -32,7 +31,7 @@
 	const {
 		projectId,
 		stackId,
-		selectionId,
+		viewModel,
 		node,
 		depth,
 		showCheckbox,
@@ -49,15 +48,16 @@
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const dropzoneRegistry = inject(DROPZONE_REGISTRY);
 	const dragStateService = inject(DRAG_STATE_SERVICE);
-	const idSelection = inject(FILE_SELECTION_MANAGER);
 
 	const folderPath = $derived(nodePath(node));
-	const selectionStatus = $derived(uncommittedService.folderCheckStatus(stackId, folderPath));
+	const selectionStatus = $derived({
+		current: viewModel.getFolderCheckStatus(folderPath),
+	});
 
 	const folderSelected = $derived.by(() => {
 		const folderChanges = getAllChanges(node);
 		if (folderChanges.length === 0) return false;
-		return folderChanges.every((c) => idSelection.has(c.path, selectionId));
+		return folderChanges.every((c) => viewModel.isSelected(c.path));
 	});
 
 	let contextMenu: ReturnType<typeof ChangedFilesContextMenu>;
@@ -65,9 +65,9 @@
 
 	function handleCheck(checked: boolean) {
 		if (checked) {
-			uncommittedService.checkDir(stackId || null, folderPath);
+			viewModel.dispatchHunkSelection({ type: "checkFolder", path: folderPath });
 		} else {
-			uncommittedService.uncheckDir(stackId || null, folderPath);
+			viewModel.dispatchHunkSelection({ type: "uncheckFolder", path: folderPath });
 		}
 	}
 
@@ -83,6 +83,7 @@
 		contextMenu?.open(e, item);
 	}
 
+	const selectionId = $derived(viewModel.selectionId);
 	const draggableDisabled = $derived(!draggable || showCheckbox);
 </script>
 

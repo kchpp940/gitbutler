@@ -9,6 +9,10 @@ import {
 import { showToast } from "$lib/notifications/toasts";
 import { compositeKey, partialKey, type HunkSelection } from "$lib/selection/entityAdapters";
 import {
+	type HunkSelectionIntent,
+	type HunkSelectionStore,
+} from "$lib/selection/fileChangesViewModel.svelte";
+import {
 	uncommittedSelectors,
 	uncommittedSlice,
 	type CheckboxStatus,
@@ -52,7 +56,6 @@ export class UncommittedService {
 	/** The change selection slice of the full redux state. */
 	private state = $state.raw(uncommittedSlice.getInitialState());
 	private dispatch: AppDispatch;
-	private dataVersion = $state(0);
 
 	constructor(
 		clientState: ClientState,
@@ -69,11 +72,6 @@ export class UncommittedService {
 
 	updateData(args: { assignments: HunkAssignment[]; changes: TreeChange[] }) {
 		this.dispatch(uncommittedActions.update(args));
-		this.dataVersion++;
-	}
-
-	getDataVersion(): number {
-		return this.dataVersion;
 	}
 
 	clearHunkSelection(stackId?: string) {
@@ -580,5 +578,64 @@ export class UncommittedService {
 
 	uncheckAll(stackId: string | null) {
 		this.dispatch(uncommittedActions.uncheckStack({ stackId }));
+	}
+
+	createHunkSelectionStore(stackId: string | null): HunkSelectionStore {
+		const service = this;
+		return {
+			getAssignments(): HunkAssignment[] {
+				return uncommittedSelectors.hunkAssignments.selectByPrefix(
+					service.state.hunkAssignments,
+					partialKey(stackId),
+				);
+			},
+			getSelections(): Map<string, string[]> {
+				const selections = uncommittedSelectors.hunkSelection.selectByPrefix(
+					service.state.hunkSelection,
+					partialKey(stackId),
+				);
+				return new Map(selections.map((s) => [s.assignmentId, s.lines]));
+			},
+			dispatch(intent: HunkSelectionIntent): void {
+				switch (intent.type) {
+					case "checkLine":
+						service.checkLine(stackId, intent.path, intent.hunkHeader, intent.line);
+						break;
+					case "uncheckLine":
+						service.uncheckLine(
+							stackId,
+							intent.path,
+							intent.hunkHeader,
+							intent.line,
+							intent.allLinesInHunk,
+						);
+						break;
+					case "checkHunk":
+						service.checkHunk(stackId, intent.path, intent.hunkHeader);
+						break;
+					case "uncheckHunk":
+						service.uncheckHunk(stackId, intent.path, intent.hunkHeader);
+						break;
+					case "checkFile":
+						service.checkFile(stackId, intent.path);
+						break;
+					case "uncheckFile":
+						service.uncheckFile(stackId, intent.path);
+						break;
+					case "checkFolder":
+						service.checkDir(stackId, intent.path);
+						break;
+					case "uncheckFolder":
+						service.uncheckDir(stackId, intent.path);
+						break;
+					case "checkAll":
+						service.checkAll(stackId);
+						break;
+					case "uncheckAll":
+						service.uncheckAll(stackId);
+						break;
+				}
+			},
+		};
 	}
 }
