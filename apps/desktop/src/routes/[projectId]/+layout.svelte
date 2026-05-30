@@ -38,7 +38,6 @@
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { debounce } from "$lib/utils/debounce";
 	import { WORKTREE_SERVICE } from "$lib/worktree/worktreeService.svelte";
-	import { STARTUP_DIAGNOSTICS_SERVICE } from "$lib/startupDiagnostics";
 	import { inject } from "@gitbutler/core/context";
 	import { reactive } from "@gitbutler/shared/reactiveUtils.svelte";
 	import { mergeUnlisten } from "@gitbutler/ui/utils/mergeUnlisten";
@@ -363,7 +362,6 @@
 	// Set active project and handle notifications
 	async function setActiveProjectOrRedirect(projectId: string) {
 		const dontShowAgainKey = `git-filters--dont-show-again--${projectId}`;
-		const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
 		try {
 			const info = await projectsService.setActiveProject(projectId);
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActive);
@@ -378,13 +376,7 @@
 			}
 
 			if (info.db_error) {
-				if (diagnostics.isInStartupPhase()) {
-					diagnostics.injectRuntimeError("Database Error", info.db_error, {
-						category: "configuration",
-					});
-				} else {
-					showError("The database was corrupted", info.db_error);
-				}
+				showError("The database was corrupted", info.db_error);
 			}
 
 			if (info.headsup && localStorage.getItem(dontShowAgainKey) !== "1") {
@@ -398,13 +390,7 @@
 			}
 		} catch (error: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.SetProjectActiveFailed);
-			if (diagnostics.isInStartupPhase()) {
-				diagnostics.injectRuntimeError("Failed to set the project active", error, {
-					category: "backend",
-				});
-			} else {
-				showError("Failed to set the project active", error);
-			}
+			showError("Failed to set the project active", error);
 		}
 	}
 

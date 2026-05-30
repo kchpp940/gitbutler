@@ -23,6 +23,7 @@ test = false
 
 [build-dependencies]
 tauri-build = { version = "2.6.1", features = [] }
+serde_json.workspace = true
 
 [dependencies]
 but = { workspace = true, optional = true }
@@ -54,7 +55,6 @@ tauri-plugin-updater = "2.10.1"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-clipboard-manager = "2.3.2"
 anyhow.workspace = true
-which = "6.0.0"
 
 # For error casting
 rusqlite.workspace = true

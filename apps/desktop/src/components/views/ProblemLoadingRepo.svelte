@@ -4,12 +4,10 @@
 	import IllustrationSplitLayout from "$components/shared/IllustrationSplitLayout.svelte";
 	import ProjectNameLabel from "$components/shared/ProjectNameLabel.svelte";
 	import ProjectSwitcher from "$components/shared/ProjectSwitcher.svelte";
-	import StartupDiagnosticsView from "$components/startupDiagnostics/StartupDiagnosticsView.svelte";
 	import AppLayout from "$components/views/AppLayout.svelte";
 	import loadErrorSvg from "$lib/assets/illustrations/load-error.svg?raw";
 	import { showError } from "$lib/error/showError";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { STARTUP_DIAGNOSTICS_SERVICE } from "$lib/startupDiagnostics";
 	import { POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
 
@@ -27,9 +25,6 @@
 
 	const projectsService = inject(PROJECTS_SERVICE);
 	const posthog = inject(POSTHOG_WRAPPER);
-	const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
-
-	const isStartupError = $derived(diagnostics.isInStartupPhase() && error !== undefined);
 
 	let loading = $state(false);
 	let deleteConfirmationModal: ReturnType<typeof RemoveProjectButton> | undefined = $state();
@@ -51,55 +46,46 @@
 
 	onMount(() => {
 		posthog.capture("repo:load_failed", { error_message: String(error) });
-		if (isStartupError) {
-			diagnostics.injectRuntimeError("Repository Load Error", error, {
-				category: "backend",
-			});
-		}
 	});
 </script>
 
-{#if isStartupError}
-	<StartupDiagnosticsView onContinue={() => {}} showCloseButton />
-{:else}
-	<AppLayout {projectId} sidebarDisabled>
-		<IllustrationSplitLayout img={loadErrorSvg}>
-			<div class="problem">
-				<div class="project-name">
-					<ProjectNameLabel projectName={projectTitle} />
-				</div>
-				<h2 class="problem__title text-18 text-body text-bold">
-					There was a problem loading this repo
-				</h2>
-
-				<div class="problem__error text-12 text-body">
-					<Icon name="danger" color="var(--fill-danger-bg)" />
-					{#if !isDefined(error)}
-						'An unknown error occured'
-					{:else if error instanceof Object && "message" in error}
-						{error.message}
-					{:else}
-						{error}
-					{/if}
-				</div>
-
-				<div class="remove-project-btn">
-					<RemoveProjectButton
-						bind:this={deleteConfirmationModal}
-						isDeleting={loading}
-						{onDeleteClicked}
-					/>
-				</div>
-
-				<Spacer dotted margin={0} />
-
-				<div class="problem__switcher">
-					<ProjectSwitcher {projectId} />
-				</div>
+<AppLayout {projectId} sidebarDisabled>
+	<IllustrationSplitLayout img={loadErrorSvg}>
+		<div class="problem">
+			<div class="project-name">
+				<ProjectNameLabel projectName={projectTitle} />
 			</div>
-		</IllustrationSplitLayout>
-	</AppLayout>
-{/if}
+			<h2 class="problem__title text-18 text-body text-bold">
+				There was a problem loading this repo
+			</h2>
+
+			<div class="problem__error text-12 text-body">
+				<Icon name="danger" color="var(--fill-danger-bg)" />
+				{#if !isDefined(error)}
+					'An unknown error occured'
+				{:else if error instanceof Object && "message" in error}
+					{error.message}
+				{:else}
+					{error}
+				{/if}
+			</div>
+
+			<div class="remove-project-btn">
+				<RemoveProjectButton
+					bind:this={deleteConfirmationModal}
+					isDeleting={loading}
+					{onDeleteClicked}
+				/>
+			</div>
+
+			<Spacer dotted margin={0} />
+
+			<div class="problem__switcher">
+				<ProjectSwitcher {projectId} />
+			</div>
+		</div>
+	</IllustrationSplitLayout>
+</AppLayout>
 
 <style lang="postcss">
 	.project-name {

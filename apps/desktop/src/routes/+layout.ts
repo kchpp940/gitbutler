@@ -1,9 +1,5 @@
 import { initAnalyticsIfEnabled } from "$lib/analytics/analytics";
 import createBackend from "$lib/backend";
-import {
-	STARTUP_DIAGNOSTICS_SERVICE,
-	type DiagnosticResult,
-} from "$lib/startupDiagnostics";
 import { SettingsService } from "$lib/settings/appSettings";
 import { EventContext } from "$lib/telemetry/eventContext";
 import { PostHogWrapper } from "$lib/telemetry/posthog";
@@ -33,26 +29,6 @@ export const load: LayoutLoad = async () => {
 	const posthog = new PostHogWrapper(settingsService, backend, eventContext);
 	initAnalyticsIfEnabled(appSettings, posthog);
 
-	const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
-	diagnostics.setBackend(backend);
-
-	const isProduction = import.meta.env.PROD;
-	const skipDevelopmentChecks = isProduction;
-
-	let startupDiagnostics: DiagnosticResult | undefined;
-	let startupDiagnosticsFailed = false;
-
-	try {
-		startupDiagnostics = await diagnostics.runAllChecks(
-			20,
-			9,
-			skipDevelopmentChecks,
-		);
-		startupDiagnosticsFailed = diagnostics.hasBlockingFailures();
-	} catch (diagnosticsError) {
-		console.warn("Startup diagnostics failed to run:", diagnosticsError);
-	}
-
 	return {
 		homeDir,
 		backend,
@@ -60,7 +36,5 @@ export const load: LayoutLoad = async () => {
 		appSettings,
 		posthog,
 		eventContext,
-		startupDiagnostics,
-		startupDiagnosticsFailed,
 	};
 };

@@ -13,16 +13,20 @@
 				"SVELTEKIT_OUT_DIR",
 				"VITE_BUILD_TARGET",
 				"VITE_BUTLER_API_BASE_URL",
-				"VITE_EMBEDDED_BUILD"
+				"VITE_EMBEDDED_BUILD",
+				"CHANNEL",
+				"MODE"
 			],
-			"env": ["SENTRY_RELEASE"],
+			"env": ["SENTRY_RELEASE", "CHANNEL", "MODE"],
 			"outputs": [
 				".svelte-kit/**",
 				"!.sveltekit/types",
 				"!.sveltekit/*.d.ts",
 				"dist/**",
-				".vercel/**"
-			]
+				".vercel/**",
+				"build/**"
+			],
+			"cache": true
 		},
 		"dev": {
 			"dependsOn": ["package"],

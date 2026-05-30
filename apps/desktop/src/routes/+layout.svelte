@@ -10,7 +10,6 @@
 	import ThemeShortcutHandler from "$components/settings/ThemeShortcutHandler.svelte";
 	import ToggleSidebarShortcutHandler from "$components/settings/ToggleSidebarShortcutHandler.svelte";
 	import ZoomShortcutHandler from "$components/settings/ZoomShortcutHandler.svelte";
-	import StartupDiagnosticsView from "$components/startupDiagnostics/StartupDiagnosticsView.svelte";
 	import AppUpdater from "$components/shared/AppUpdater.svelte";
 	import FocusCursor from "$components/shared/FocusCursor.svelte";
 	import GitInputPrompt from "$components/shared/GitInputPrompt.svelte";
@@ -22,7 +21,6 @@
 	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
 	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { STARTUP_DIAGNOSTICS_SERVICE } from "$lib/startupDiagnostics";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { TERMINAL_SERVICE } from "$lib/settings/terminalService";
 	import { createKeybind } from "$lib/shortcuts/hotkeys";
@@ -39,29 +37,6 @@
 
 	const { data, children }: { data: LayoutData; children: Snippet } = $props();
 	const projectId = $derived(page.params.projectId);
-
-	let showDiagnostics = $state(false);
-	let diagnosticsBypassed = $state(false);
-	const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
-
-	function handleDiagnosticsContinue() {
-		showDiagnostics = false;
-		diagnosticsBypassed = true;
-		diagnostics.markStartupComplete();
-	}
-
-	function handleDiagnosticsClose() {
-		showDiagnostics = false;
-		diagnostics.markStartupComplete();
-	}
-
-	$effect(() => {
-		if (data.startupDiagnosticsFailed && !diagnosticsBypassed) {
-			showDiagnostics = true;
-		} else if (!data.startupDiagnosticsFailed) {
-			diagnostics.markStartupComplete();
-		}
-	});
 
 	// =============================================================================
 	// BOOTSTRAP & INIT
@@ -210,13 +185,7 @@
 </svelte:head>
 
 <div class="app-root" role="application" oncontextmenu={(e) => !dev && e.preventDefault()}>
-	{#if showDiagnostics}
-		<div class="diagnostics-overlay">
-			<StartupDiagnosticsView onContinue={handleDiagnosticsContinue} />
-		</div>
-	{:else}
-		{@render children()}
-	{/if}
+	{@render children()}
 </div>
 <ShareIssueModal />
 <ToastController />
@@ -240,16 +209,5 @@
 		display: flex;
 		height: 100%;
 		cursor: default;
-	}
-
-	.diagnostics-overlay {
-		display: flex;
-		width: 100%;
-		height: 100%;
-		align-items: center;
-		justify-content: center;
-		background-color: var(--bg-1);
-		overflow-y: auto;
-		padding: 24px;
 	}
 </style>

@@ -41,6 +41,11 @@ package
 !.env.example
 vite.config.ts.timestamp-*
 tsconfig.tsbuildinfo
+.build-manifest.json
+.rust-binaries-manifest.json
+.sidecar-integrity.json
+node_modules/.vite
+node_modules/.vite-*
 
 # Written to disk when using `act`
 .pnpm-store
