@@ -6,9 +6,6 @@
 	import { autoSelectBranchCreationFeature } from "$lib/config/uiFeatureFlags";
 	import { useSettingsModal } from "$lib/settings/settingsModal.svelte";
 	import { getStackName } from "$lib/stacks/stack";
-	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-	import type { CreateStackCommand, CreateCommitCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { persisted } from "@gitbutler/shared/persisted";
@@ -33,7 +30,8 @@
 
 	let { projectId, stackId }: Props = $props();
 	const stackService = inject(STACK_SERVICE);
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
+	const [createNewStack, stackCreation] = stackService.newStack;
+	const [createNewBranch, branchCreation] = stackService.newBranch;
 	const { openGeneralSettings } = useSettingsModal();
 
 	let createRefModal = $state<ReturnType<typeof Modal>>();
@@ -92,27 +90,25 @@
 
 	async function addNew() {
 		if (createRefType === "stack") {
-			const command: CreateStackCommand = {
-				type: STACK_COMMANDS.CREATE_STACK,
+			await createNewStack({
 				projectId,
-				stackId: "",
-				branchName: normalizedRefName ?? "",
-				commitMessage: "",
-				order: $addToLeftmost ? 0 : undefined,
-			};
-			await commandExecutor.execute(command);
+				branch: {
+					name: normalizedRefName,
+					// If addToLeftmost is true, place at position 0 (leftmost)
+					// Otherwise, leave undefined to append to the right
+					order: $addToLeftmost ? 0 : undefined,
+				},
+			});
 			createRefModal?.close();
 		} else {
 			if (!selectedStackId || !normalizedRefName) {
 				return;
 			}
-			const command: CreateCommitCommand = {
-				type: STACK_COMMANDS.CREATE_COMMIT,
+			await createNewBranch({
 				projectId,
 				stackId: selectedStackId,
-				branchName: normalizedRefName,
-			};
-			await commandExecutor.execute(command);
+				request: { targetPatch: undefined, name: normalizedRefName },
+			});
 			createRefModal?.close();
 		}
 
@@ -120,6 +116,8 @@
 		createRefName = undefined;
 		selectedStackId = undefined;
 	}
+
+	const isAddingNew = $derived(stackCreation.current.isLoading || branchCreation.current.isLoading);
 
 	export async function show(initialType?: "stack" | "dependent") {
 		createRefModal?.show();
@@ -274,6 +272,7 @@
 					type="submit"
 					onclick={addNew}
 					disabled={!isBranchNameValid || (createRefType === "dependent" && !selectedStackId)}
+					loading={isAddingNew}
 					testId={TestId.ConfirmSubmit}
 				>
 					Create branch

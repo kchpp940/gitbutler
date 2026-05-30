@@ -11,11 +11,9 @@
 	import { rewrapCommitMessage } from "$lib/config/uiFeatureFlags";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
-	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-	import type { UncommitCommand, UpdateCommitMessageCommand } from "$lib/stacks/stackCommands";
+	import { showToast } from "$lib/notifications/toasts";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-	import { UI_STATE } from "$lib/state/uiState.svelte";
+	import { UI_STATE, withStackBusy } from "$lib/state/uiState.svelte";
 	import { ensureValue } from "$lib/utils/validation";
 	import { inject, injectOptional } from "@gitbutler/core/context";
 	import { Button, TestId } from "@gitbutler/ui";
@@ -51,7 +49,6 @@
 	}: Props & { isInEditMessageMode?: boolean } = $props();
 
 	const stackService = inject(STACK_SERVICE);
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const uiState = inject(UI_STATE);
 
 	// Component is read-only when stackId is undefined
@@ -67,6 +64,8 @@
 	const commitQuery = $derived(
 		stackService.commitById(projectId, commitKey.stackId, commitKey.commitId),
 	);
+
+	const [updateCommitMessage, messageUpdateQuery] = stackService.updateCommitMessage;
 
 	type Mode = "view" | "edit";
 
@@ -106,36 +105,39 @@
 			throw new Error("No branch selected!");
 		}
 		if (!commitMessage) {
+			showToast({ message: "Commit message is required", style: "danger" });
 			return;
 		}
 
-		const command: UpdateCommitMessageCommand = {
-			type: STACK_COMMANDS.UPDATE_COMMIT_MESSAGE,
+		const newCommitId = await updateCommitMessage({
 			projectId,
 			stackId: ensureValue(stackId),
 			commitId: commitKey.commitId,
 			message: commitMessage,
-		};
+			dryRun: false,
+		});
 
-		const result = await commandExecutor.execute(command);
-		if (result.success && result.data) {
-			uiState
-				.lane(ensureValue(stackId))
-				.selection.set({ branchName, commitId: result.data as string, previewOpen: true });
-		}
+		uiState
+			.lane(ensureValue(stackId))
+			.selection.set({ branchName, commitId: newCommitId, previewOpen: true });
 		setMode("view");
 	}
 
 	async function handleUncommit() {
 		if (!branchName) return;
 		const targetStackId = ensureValue(stackId);
-		const command: UncommitCommand = {
-			type: STACK_COMMANDS.UNCOMMIT,
+		await withStackBusy(
+			uiState,
 			projectId,
-			stackId: targetStackId,
-			commitIds: [commitKey.commitId],
-		};
-		await commandExecutor.execute(command);
+			{ commitId: commitKey.commitId, stackIds: [targetStackId] },
+			async () => {
+				await stackService.uncommit({
+					projectId,
+					stackId: targetStackId,
+					commitIds: [commitKey.commitId],
+				});
+			},
+		);
 	}
 
 	function canEdit() {
@@ -242,6 +244,7 @@
 							actionLabel="Save changes"
 							onCancel={cancelEdit}
 							floatingBoxHeader="Reword commit"
+							loading={messageUpdateQuery.current.isLoading}
 							existingCommitId={commit.id}
 							title={parsedMessage?.title || ""}
 							description={parsedMessage?.description || ""}

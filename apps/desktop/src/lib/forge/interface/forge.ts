@@ -16,6 +16,7 @@ export interface Forge {
 	readonly name: ForgeName;
 	readonly isLoading: boolean;
 	readonly authenticated: boolean;
+	readonly scopeId: string | undefined;
 	// Lists PRs for the repo.
 	get listService(): ForgeListingService | undefined;
 

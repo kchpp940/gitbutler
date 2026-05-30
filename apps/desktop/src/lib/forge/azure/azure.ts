@@ -19,6 +19,7 @@ export class AzureDevOps implements Forge {
 	readonly name: ForgeName = "azure";
 	readonly authenticated: boolean;
 	readonly isLoading = false;
+	readonly scopeId = undefined;
 	private baseUrl: string;
 	private repo: RepoInfo;
 	private baseBranch: string;

@@ -71,7 +71,7 @@
 	const urlService = inject(URL_SERVICE);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
 
-	const prQuery = $derived(prService?.get(prNumber, { forceRefetch: true }));
+	const prQuery = $derived(prService?.get(prNumber));
 	const pr = $derived(prQuery?.response);
 
 	const { name, abbr, symbol } = $derived(prService!.unit);
@@ -84,7 +84,7 @@
 		draftToggling = true;
 		try {
 			await prService.setDraft(projectId, prNumber, draft);
-			await prService.fetch(prNumber, { forceRefetch: true });
+			await prService.fetch(prNumber);
 		} catch (err: unknown) {
 			showError("Failed to update draft status", err);
 		} finally {
@@ -165,7 +165,7 @@
 						label="Refetch status"
 						onclick={() => {
 							contextMenuOpen = false;
-							prService?.fetch(pr.number, { forceRefetch: true });
+							prService?.fetch(pr.number);
 							if (hasChecks) {
 								checksService?.fetch(pr.sourceBranch, { forceRefetch: true });
 							}

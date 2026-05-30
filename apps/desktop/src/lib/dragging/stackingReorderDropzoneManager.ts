@@ -1,16 +1,11 @@
 import { CommitDropData } from "$lib/dragging/dropHandlers/commitDropHandler";
 import { toCommitMovePlacement } from "$lib/stacks/commitMovePlacement";
-import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-import type { MoveCommitsCommand } from "$lib/stacks/stackCommands";
-import { type UiState } from "$lib/state/uiState.svelte";
-import { InjectionToken, inject } from "@gitbutler/core/context";
+import { withStackBusy, type UiState } from "$lib/state/uiState.svelte";
+import { InjectionToken } from "@gitbutler/core/context";
 import type { DropzoneHandler } from "$lib/dragging/handler";
 import type { StackService } from "$lib/stacks/stackService.svelte";
 
 export class ReorderCommitDzHandler implements DropzoneHandler {
-	private readonly commandExecutor = inject(STACK_COMMAND_EXECUTOR);
-
 	constructor(
 		private projectId: string,
 		private branchId: string,
@@ -42,18 +37,20 @@ export class ReorderCommitDzHandler implements DropzoneHandler {
 			targetBranchName: this.currentSeriesName,
 			targetCommitId: this.commitId,
 		});
-
-		const command: MoveCommitsCommand = {
-			type: STACK_COMMANDS.MOVE_COMMITS,
-			projectId: this.projectId,
-			subjectCommitIds: [data.commit.id],
-			relativeTo,
-			side,
-			sourceStackId: data.stackId,
-			targetStackId: data.stackId,
-		};
-
-		await this.commandExecutor.execute(command);
+		await withStackBusy(
+			this.uiState,
+			this.projectId,
+			{ commitId: data.commit.id, stackIds: [data.stackId] },
+			async () => {
+				await this.stackService.commitMove({
+					projectId: this.projectId,
+					subjectCommitIds: [data.commit.id],
+					relativeTo,
+					side,
+					dryRun: false,
+				});
+			},
+		);
 	}
 }
 

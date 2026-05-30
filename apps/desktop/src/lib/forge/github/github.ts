@@ -14,6 +14,7 @@ import type { AppDispatch, GitHubApi } from "$lib/state/clientState.svelte";
 import type { PostHogWrapper } from "$lib/telemetry/posthog";
 import type { RestEndpointMethodTypes } from "@octokit/rest";
 import type { TagDescription } from "@reduxjs/toolkit/query";
+import type { ForgeScope } from "$lib/forge/forgeScope";
 
 export const GITHUB_DOMAIN = "github.com";
 
@@ -21,6 +22,7 @@ export class GitHub implements Forge {
 	readonly name: ForgeName = "github";
 	readonly authenticated: boolean;
 	readonly isLoading: boolean;
+	readonly scopeId: string | undefined;
 	private baseUrl: string;
 
 	private api: ReturnType<typeof injectEndpoints>;
@@ -33,12 +35,14 @@ export class GitHub implements Forge {
 			api: GitHubApi;
 			backendApi: BackendApi;
 			isLoading: boolean;
+			scope?: ForgeScope;
 		},
 	) {
-		const { client, api, authenticated, repo, isLoading } = params;
+		const { client, api, authenticated, repo, isLoading, scope } = params;
 		const { owner, name } = repo;
 		this.authenticated = authenticated;
 		this.isLoading = isLoading;
+		this.scopeId = scope?.id;
 
 		// Use the protocol from repo if available, otherwise default to https
 		// For SSH remote URLs, always use HTTPS for browser compatibility
@@ -62,18 +66,18 @@ export class GitHub implements Forge {
 	get listService() {
 		if (!this.authenticated) return;
 		const { api: gitHubApi, backendApi, dispatch } = this.params;
-		return new GitHubListingService(gitHubApi, backendApi, dispatch);
+		return new GitHubListingService(gitHubApi, backendApi, dispatch, this.scopeId);
 	}
 
 	get prService() {
 		if (!this.authenticated) return;
 		const { api: gitHubApi, posthog, backendApi } = this.params;
-		return new GitHubPrService(gitHubApi, backendApi, posthog);
+		return new GitHubPrService(gitHubApi, backendApi, posthog, this.scopeId);
 	}
 
 	get repoService() {
 		if (!this.authenticated) return;
-		return new GitHubRepoService(this.params.api);
+		return new GitHubRepoService(this.params.api, this.scopeId);
 	}
 
 	get issueService() {
@@ -83,7 +87,7 @@ export class GitHub implements Forge {
 
 	get checks() {
 		if (!this.authenticated) return;
-		return new GitHubChecksMonitor(this.params.api);
+		return new GitHubChecksMonitor(this.params.api, this.scopeId);
 	}
 
 	get user() {

@@ -69,7 +69,7 @@
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const branchService = inject(BRANCH_SERVICE);
 
-	const prs = $derived(forge.current.listService?.list(projectId, 15 * 60 * 1000));
+	const prs = $derived(forge.current.listService?.list(projectId));
 
 	const branchesQuery = $derived(branchService.list(projectId));
 	const combined = $derived(

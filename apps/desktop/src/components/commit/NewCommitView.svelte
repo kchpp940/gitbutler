@@ -8,12 +8,6 @@
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createWorktreeSelection } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
-	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-	import type {
-		CreateStackCommand,
-		CreateCommitCommand,
-	} from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { UI_STATE, type NewCommitMessage, type RejectionReason } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -28,7 +22,6 @@
 	const { projectId, stackId, onclose }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const uiState = inject(UI_STATE);
 	const hooksService = inject(HOOKS_SERVICE);
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
@@ -76,17 +69,12 @@
 			const insertBelow = commitAction?.insertBelow;
 
 			if (!finalStackId) {
-				const createStackCmd: CreateStackCommand = {
-					type: STACK_COMMANDS.CREATE_STACK,
+				const stack = await createNewStack({
 					projectId,
-					branchName: finalBranchName,
-				};
-				const stackResult = await commandExecutor.execute(createStackCmd);
-				if (!stackResult.success || !stackResult.data) {
-					throw stackResult.error ?? new Error("Failed to create stack");
-				}
-				finalStackId = stackResult.data.id;
-				finalBranchName = stackResult.data.heads[0]?.name;
+					branch: { name: finalBranchName, order: 0 },
+				});
+				finalStackId = stack.id ?? undefined;
+				finalBranchName = stack.heads[0]?.name; // Updated to access the name property
 				uiState.global.draftBranchName.set(undefined);
 			}
 
@@ -129,23 +117,19 @@
 				await hooksService.runPreCommitHooks(projectId, worktreeChanges);
 			}
 
-			const createCommitCmd: CreateCommitCommand = {
-				type: STACK_COMMANDS.CREATE_COMMIT,
-				projectId,
-				parentId,
-				insertBelow,
-				stackId: finalStackId,
-				message: finalMessage,
-				stackBranchName: finalBranchName,
-				worktreeChanges,
-				dryRun: false,
-				analyticsProperties,
-			};
-			const commitResult = await commandExecutor.execute(createCommitCmd);
-			if (!commitResult.success || !commitResult.data) {
-				throw commitResult.error ?? new Error("Failed to create commit");
-			}
-			const response = commitResult.data;
+			const response = await createCommitInStack(
+				{
+					projectId,
+					parentId,
+					insertBelow,
+					stackId: finalStackId,
+					message: finalMessage,
+					stackBranchName: finalBranchName,
+					worktreeChanges,
+					dryRun: false,
+				},
+				{ properties: analyticsProperties },
+			);
 
 			if ($runCommitHooks) {
 				await hooksService.runPostCommitHooks(projectId);
@@ -163,6 +147,25 @@
 				// Clear change/hunk selection used for creating the commit.
 				uncommittedService.clearHunkSelection();
 				idSelection.clear(createWorktreeSelection({ stackId }));
+			}
+
+			if (response.rejectedChanges.length > 0) {
+				const pathsToRejectedChanges = response.rejectedChanges.reduce(
+					(acc: Record<string, RejectionReason>, { reason, path }) => {
+						acc[path] = reason;
+						return acc;
+					},
+					{},
+				);
+
+				uiState.global.modal.set({
+					type: "commit-failed",
+					projectId,
+					targetBranchName: finalBranchName,
+					newCommitId: newId ?? undefined,
+					commitTitle: laneState.newCommitMessage.current?.title || "",
+					pathsToRejectedChanges,
+				});
 			}
 		} finally {
 			isCooking = false;

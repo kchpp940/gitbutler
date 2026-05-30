@@ -21,6 +21,7 @@ import {
 import { FILE_SERVICE, FileService } from "$lib/files/fileService";
 import { ResizeSync, RESIZE_SYNC } from "$lib/floating/resizeSync";
 import { DefaultForgeFactory, DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
+import { ForgeScopeService, FORGE_SCOPE_SERVICE } from "$lib/forge/forgeScopeService.svelte";
 import { GITHUB_CLIENT, GitHubClient } from "$lib/forge/github/githubClient";
 import { GitHubUserService, GITHUB_USER_SERVICE } from "$lib/forge/github/githubUserService.svelte";
 import { GITLAB_CLIENT, GitLabClient } from "$lib/forge/gitlab/gitlabClient.svelte";
@@ -51,10 +52,6 @@ import { SETTINGS_SERVICE, SettingsService } from "$lib/settings/appSettings";
 import { TerminalService, TERMINAL_SERVICE } from "$lib/settings/terminalService";
 import { ShortcutService, SHORTCUT_SERVICE } from "$lib/shortcuts/shortcutService";
 import { StackService, STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-import {
-	createStackCommandExecutor,
-	STACK_COMMAND_EXECUTOR,
-} from "$lib/stacks/commandExecutorFactory";
 import { ClientState, CLIENT_STATE } from "$lib/state/clientState.svelte";
 import { UiState, UI_STATE, uiStateSlice } from "$lib/state/uiState.svelte";
 import DataSharingService, { DATA_SHARING_SERVICE } from "$lib/support/dataSharing";
@@ -166,7 +163,7 @@ export function initDependencies(args: {
 	const workingFilesBroadcast = new WorkingFilesBroadcast(backend);
 
 	// ============================================================================
-	// FORGE FACTORY
+	// FORGE FACTORY & SCOPE SERVICE
 	// ============================================================================
 
 	const forgeFactory = new DefaultForgeFactory({
@@ -178,6 +175,12 @@ export function initDependencies(args: {
 		dispatch: clientState.dispatch,
 		posthog,
 	});
+
+	const forgeScopeService = new ForgeScopeService(
+		forgeFactory,
+		clientState.backendApi,
+		clientState.dispatch,
+	);
 
 	// ============================================================================
 	// GIT & VERSION CONTROL
@@ -200,17 +203,6 @@ export function initDependencies(args: {
 		forgeFactory,
 		uiState,
 	);
-
-	const commandExecutor = createStackCommandExecutor({
-		services: {
-			stackService,
-			backendApi: clientState.backendApi,
-			dispatch: clientState.dispatch,
-			forgeFactory,
-			uiState,
-		},
-	});
-
 	const modeService = new ModeService(clientState.backendApi);
 	const rulesService = new RulesService(clientState.backendApi);
 	const worktreeService = new WorktreeService(clientState.backendApi);
@@ -335,6 +327,7 @@ export function initDependencies(args: {
 		[COMMIT_ANALYTICS, commitAnalytics],
 		[DATA_SHARING_SERVICE, dataSharingService],
 		[DEFAULT_FORGE_FACTORY, forgeFactory],
+		[FORGE_SCOPE_SERVICE, forgeScopeService],
 		[DEPENDENCY_SERVICE, dependencyService],
 		[DIFF_SERVICE, diffService],
 		[DRAG_STATE_SERVICE, dragStateService],
@@ -369,7 +362,6 @@ export function initDependencies(args: {
 		[TERMINAL_SERVICE, terminalService],
 		[SHORTCUT_SERVICE, shortcutService],
 		[STACK_SERVICE, stackService],
-		[STACK_COMMAND_EXECUTOR, commandExecutor],
 		[REORDER_DROPZONE_FACTORY, reorderDropzoneFactory],
 		[UI_STATE, uiState],
 		[UNCOMMITTED_SERVICE, uncommittedService],

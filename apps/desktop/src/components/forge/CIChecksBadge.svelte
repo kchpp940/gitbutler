@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
-	import { getPollingInterval } from "$lib/forge/shared/progressivePolling";
+	import { FORGE_SCOPE_SERVICE } from "$lib/forge/forgeScopeService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
 
@@ -15,7 +15,6 @@
 		hasChecks?: boolean;
 		isFork?: boolean;
 		isMerged?: boolean;
-		onrefetch?: () => void;
 	};
 
 	type StatusInfo = {
@@ -35,10 +34,10 @@
 		isFork,
 		isMerged,
 		hasChecks = $bindable(),
-		onrefetch,
 	}: Props = $props();
 
 	const forge = inject(DEFAULT_FORGE_FACTORY);
+	const forgeScopeService = inject(FORGE_SCOPE_SERVICE);
 	const uiState = inject(UI_STATE);
 
 	const checksService = $derived(forge.current.checks);
@@ -54,11 +53,9 @@
 	// https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#list-check-runs-in-a-check-suite
 	const enabled = $derived(!isFork && !isMerged); // Deduplication.
 
-	const pollingInterval = $derived(getPollingInterval(elapsedMs, isDone));
-
 	const checksQuery = $derived(
 		enabled
-			? checksService?.get(branchName, { subscriptionOptions: { pollingInterval } })
+			? checksService?.get(branchName)
 			: undefined,
 	);
 
@@ -233,8 +230,7 @@
 			loadedOnce = false;
 			elapsedMs = 0;
 		}
-		checksQuery?.result.refetch();
-		onrefetch?.();
+		forgeScopeService.refreshChecks(branchName);
 	}}
 >
 	<span data-pr-text={checksTagInfo.reducedText} class="truncate">

@@ -1,6 +1,6 @@
 import { getBranchNameFromRef } from "$lib/branches/branchUtils";
 import { sortLikeFileTree } from "$lib/files/filetreeV3";
-
+import { showToast } from "$lib/notifications/toasts";
 import {
 	selectWorkspaceStackById,
 	selectWorkspaceStackDetails,
@@ -384,11 +384,36 @@ export class StackService {
 
 	get pushStack() {
 		return this.backendApi.endpoints.pushStack.useMutation({
+			sideEffect: (result, _) => {
+				// Timeout to accommodate eventual consistency.
+				setTimeout(() => {
+					const invalidations = [invalidatesList(ReduxTag.PullRequests)];
+
+					if (result) {
+						const upstreamBranchNames = result.branchToRemote
+							.map(([_, refname]) => getBranchNameFromRef(refname, result.remote))
+							.filter(isDefined);
+						for (const name of upstreamBranchNames) {
+							invalidations.push(invalidatesItem(ReduxTag.Checks, name));
+						}
+					}
+
+					this.forgeFactory.invalidate(invalidations);
+				}, 2000);
+			},
 			onError: (commandError: ReduxError) => {
-				const { code } = commandError;
+				const { code, message } = commandError;
 				if (code === "GitForcePushProtection") {
 					throw commandError;
 				}
+				const reason =
+					code === "ProjectGitAuth" ? "an authentication failure" : "an unforeseen error";
+				showToast({
+					title: "Git push failed",
+					message: `Your branch cannot be pushed due to ${reason}.\n\nPlease check our [documentation](https://docs.gitbutler.com/troubleshooting/fetch-push)\non fetching and pushing for ways to resolve the problem.`,
+					error: message,
+					style: "warning",
+				});
 			},
 			throwSilentError: true,
 		});
@@ -589,7 +614,41 @@ export class StackService {
 	}
 
 	get updateBranchName() {
-		return this.backendApi.endpoints.updateBranchName.useMutation();
+		return this.backendApi.endpoints.updateBranchName.useMutation({
+			sideEffect: (_, args) => {
+				// Immediately update the selection and the exclusive action.
+				const laneState = this.uiState.lane(args.laneId);
+				const projectState = this.uiState.project(args.projectId);
+				const exclusiveAction = projectState.exclusiveAction.current;
+				const previousSelection = laneState.selection.current;
+
+				if (previousSelection) {
+					const updatedSelection = replaceBranchInStackSelection(
+						previousSelection,
+						args.branchName,
+						args.newName,
+					);
+					laneState.selection.set(updatedSelection);
+				}
+
+				if (exclusiveAction) {
+					const updatedExclusiveAction = replaceBranchInExclusiveAction(
+						exclusiveAction,
+						args.branchName,
+						args.newName,
+					);
+					projectState.exclusiveAction.set(updatedExclusiveAction);
+				}
+			},
+			onError: (_, args) => {
+				const state = this.uiState.lane(args.laneId);
+				const previewOpen = state.selection.current?.previewOpen ?? false;
+				state.selection.set({
+					branchName: args.branchName,
+					previewOpen,
+				});
+			},
+		});
 	}
 
 	get removeBranch() {
@@ -682,7 +741,7 @@ export class StackService {
 		);
 
 		if (!allCommits) return;
-		const localCommits = allCommits.filter((commit: { state: { type: string }; id: string }) => commit.state.type !== "Integrated");
+		const localCommits = allCommits.filter((commit) => commit.state.type !== "Integrated");
 
 		if (localCommits.length <= 1) return;
 
@@ -692,7 +751,7 @@ export class StackService {
 		await this.squashCommits({
 			projectId,
 			stackId,
-			sourceCommitIds: squashCommits.map((commit: { id: string }) => commit.id),
+			sourceCommitIds: squashCommits.map((commit) => commit.id),
 			targetCommitId: targetCommit.id,
 		});
 	}

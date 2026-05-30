@@ -1,5 +1,5 @@
 import { ghQuery } from "$lib/forge/github/ghQuery";
-import { providesList, ReduxTag } from "$lib/state/tags";
+import { providesScopedList, ReduxTag } from "$lib/state/tags";
 import type { RepoResult } from "$lib/forge/github/types";
 import type { ForgeRepoService, RepoDetailedInfo } from "$lib/forge/interface/forgeRepoService";
 import type { ReactiveQuery } from "$lib/state/butlerModule";
@@ -8,8 +8,8 @@ import type { GitHubApi } from "$lib/state/clientState.svelte";
 export class GitHubRepoService implements ForgeRepoService {
 	private api: ReturnType<typeof injectEndpoints>;
 
-	constructor(gitHubApi: GitHubApi) {
-		this.api = injectEndpoints(gitHubApi);
+	constructor(gitHubApi: GitHubApi, private readonly scopeId?: string) {
+		this.api = injectEndpoints(gitHubApi, scopeId);
 	}
 
 	getInfo(): ReactiveQuery<RepoDetailedInfo> {
@@ -21,7 +21,7 @@ export class GitHubRepoService implements ForgeRepoService {
 	}
 }
 
-function injectEndpoints(api: GitHubApi) {
+function injectEndpoints(api: GitHubApi, scopeId?: string) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			getRepos: build.query<RepoResult, void>({
@@ -31,7 +31,7 @@ function injectEndpoints(api: GitHubApi) {
 						action: "get",
 						extra: api.extra,
 					}),
-				providesTags: [providesList(ReduxTag.PullRequests)],
+				providesTags: [providesScopedList(ReduxTag.PullRequests, scopeId ?? "")],
 			}),
 		}),
 	});

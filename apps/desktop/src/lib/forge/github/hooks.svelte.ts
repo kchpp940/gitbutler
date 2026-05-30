@@ -59,6 +59,7 @@ type GitHubAccess = {
 	isLoading: Reactive<boolean>;
 	error: Reactive<{ code?: Code; message: string } | undefined>;
 	isError: Reactive<boolean>;
+	preferredAccount: Reactive<GithubAccountIdentifier | undefined>;
 };
 
 /**
@@ -86,5 +87,6 @@ export function useGitHubAccessToken(projectId: Reactive<string>): GitHubAccess 
 			() => ghUserResponse?.result.error as { code?: Code; message: string } | undefined,
 		),
 		isError: reactive(() => ghUserResponse?.result.isError ?? false),
+		preferredAccount: preferredGitHubAccount,
 	};
 }

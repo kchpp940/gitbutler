@@ -10,14 +10,11 @@
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import {
-	branchHasConflicts,
-	branchHasUnpushedCommits,
-	partialStackRequestsForcePush,
-} from "$lib/stacks/stack";
-import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
-import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-import type { PushStackCommand } from "$lib/stacks/stackCommands";
+		branchHasConflicts,
+		branchHasUnpushedCommits,
+		partialStackRequestsForcePush,
+	} from "$lib/stacks/stack";
+	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { combineResults } from "$lib/state/helpers";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -53,7 +50,6 @@ import type { PushStackCommand } from "$lib/stacks/stackCommands";
 	}: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const projectsService = inject(PROJECTS_SERVICE);
 	const uiState = inject(UI_STATE);
 	const forge = inject(DEFAULT_FORGE_FACTORY);
@@ -70,7 +66,7 @@ import type { PushStackCommand } from "$lib/stacks/stackCommands";
 
 	const branchDetails = $derived(stackService.branchDetails(projectId, stackId, branchName));
 	const branchesQuery = $derived(stackService.branches(projectId, stackId));
-	const [, pushQuery] = stackService.pushStack;
+	const [pushStack, pushQuery] = stackService.pushStack;
 
 	function handleClick(args: {
 		withForce: boolean;
@@ -99,8 +95,7 @@ import type { PushStackCommand } from "$lib/stacks/stackCommands";
 
 		const { withForce, skipForcePushProtection, gerritFlags } = args;
 		try {
-			const command: PushStackCommand = {
-				type: STACK_COMMANDS.PUSH_STACK,
+			const pushResult = await pushStack({
 				projectId,
 				stackId,
 				withForce,
@@ -108,25 +103,20 @@ import type { PushStackCommand } from "$lib/stacks/stackCommands";
 				branch: branchName,
 				runHooks: $runHooks,
 				pushOpts: gerritFlags,
-			};
+			});
 
-			const result = await commandExecutor.execute(command);
+			const upstreamBranchNames = pushResult.branchToRemote
+				.map(([_, refname]) => getBranchNameFromRef(refname, pushResult.remote))
+				.filter(isDefined);
+			if (upstreamBranchNames.length === 0) return;
+			uiState.project(projectId).branchesToPoll.add(...upstreamBranchNames);
 
-			if (result.success && result.data) {
-				const pushResult = result.data;
-				const upstreamBranchNames = pushResult.branchToRemote
-					.map(([_, refname]) => getBranchNameFromRef(refname, pushResult.remote))
-					.filter(isDefined);
-				if (upstreamBranchNames.length === 0) return;
-				uiState.project(projectId).branchesToPoll.add(...upstreamBranchNames);
-
-				// Show success notification
-				const branchText =
-					multipleBranches && !isLastBranchInStack
-						? `${branchName} and all branches below it`
-						: branchName;
-				chipToasts.success(`Pushed ${branchText} successfully`);
-			}
+			// Show success notification
+			const branchText =
+				multipleBranches && !isLastBranchInStack
+					? `${branchName} and all branches below it`
+					: branchName;
+			chipToasts.success(`Pushed ${branchText} successfully`);
 		} catch (error: any) {
 			if (error?.code === "GitForcePushProtection") {
 				forcePushProtectionModal?.show();

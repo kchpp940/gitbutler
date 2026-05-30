@@ -11,6 +11,7 @@ import type { AppDispatch, GitLabApi } from "$lib/state/clientState.svelte";
 import type { PostHogWrapper } from "$lib/telemetry/posthog";
 import type { Branded } from "@gitbutler/shared/utils/branding";
 import type { TagDescription } from "@reduxjs/toolkit/query";
+import type { ForgeScope } from "$lib/forge/forgeScope";
 
 export const GITLAB_DOMAIN = "gitlab.com";
 export const GITLAB_SUB_DOMAIN = "gitlab"; // For self hosted instance of Gitlab
@@ -25,6 +26,7 @@ export class GitLab implements Forge {
 	readonly name: ForgeName = "gitlab";
 	readonly authenticated: boolean;
 	readonly isLoading: boolean;
+	readonly scopeId: string | undefined;
 	private baseUrl: string;
 	private baseBranch: string;
 	private forkStr?: string;
@@ -38,9 +40,13 @@ export class GitLab implements Forge {
 			client: GitLabClient;
 			dispatch: AppDispatch;
 			isLoading: boolean;
+			scope?: ForgeScope;
 		},
 	) {
-		const { api, baseBranch, forkStr, authenticated, repo, isLoading } = this.params;
+		const { api, baseBranch, forkStr, authenticated, repo, isLoading, scope } = this.params;
+		this.authenticated = authenticated;
+		this.isLoading = isLoading;
+		this.scopeId = scope?.id;
 		// Use the protocol from repo if available, otherwise default to https
 		// For SSH remote URLs, always use HTTPS for browser compatibility
 		let protocol = repo.protocol?.endsWith(":")
@@ -76,7 +82,7 @@ export class GitLab implements Forge {
 	get listService() {
 		if (!this.authenticated) return;
 		const { api: gitLabApi, dispatch } = this.params;
-		return new GitLabListingService(gitLabApi, dispatch);
+		return new GitLabListingService(gitLabApi, dispatch, this.scopeId);
 	}
 
 	get issueService() {
@@ -86,7 +92,7 @@ export class GitLab implements Forge {
 	get prService() {
 		if (!this.authenticated) return;
 		const { api: gitLabApi, posthog, backendApi } = this.params;
-		return new GitLabPrService(gitLabApi, backendApi, posthog);
+		return new GitLabPrService(gitLabApi, backendApi, posthog, this.scopeId);
 	}
 
 	get repoService() {

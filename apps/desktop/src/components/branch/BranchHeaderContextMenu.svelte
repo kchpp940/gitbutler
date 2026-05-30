@@ -23,9 +23,6 @@
 	import { URL_SERVICE } from "$lib/backend/url";
 	import { projectAiGenEnabled } from "$lib/config/config";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
-	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-	import type { InsertBlankCommitCommand, UpdateBranchNameCommand } from "$lib/stacks/stackCommands";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
@@ -59,11 +56,12 @@
 
 	const aiService = inject(AI_SERVICE);
 	const stackService = inject(STACK_SERVICE);
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const promptService = inject(PROMPT_SERVICE);
 	const urlService = inject(URL_SERVICE);
 	const clipboardService = inject(CLIPBOARD_SERVICE);
+	const [insertBlankCommitInBranch, commitInsertion] = stackService.insertBlankCommit.useMutation();
+	const [updateBranchNameMutation] = stackService.updateBranchName;
 	const [createRef, refCreation] = stackService.createReference;
 
 	// Component is read-only when stackId is undefined
@@ -129,15 +127,13 @@
 		});
 
 		if (newBranchName && newBranchName !== branchName) {
-			const command: UpdateBranchNameCommand = {
-				type: STACK_COMMANDS.UPDATE_BRANCH_NAME,
-				projectId,
+			await updateBranchNameMutation({
+				projectId: projectId,
 				stackId,
 				laneId,
 				branchName,
 				newName: newBranchName,
-			};
-			await commandExecutor.execute(command);
+			});
 		}
 	}
 
@@ -158,19 +154,6 @@
 				},
 			},
 		});
-	}
-
-	async function insertBlankCommit() {
-		if (!branchReference || !stackId) return;
-		const command: InsertBlankCommitCommand = {
-			type: STACK_COMMANDS.INSERT_BLANK_COMMIT,
-			projectId,
-			stackId,
-			branchName: branchName ?? "",
-			targetCommitId: "",
-			insertAfter: true,
-		};
-		await commandExecutor.execute(command);
 	}
 
 	$effect(() => {
@@ -248,10 +231,15 @@
 					testId={TestId.BranchHeaderContextMenu_AddEmptyCommit}
 					onclick={async () => {
 						if (!branchReference) return;
-						await insertBlankCommit();
+						await insertBlankCommitInBranch({
+							projectId,
+							relativeTo: { type: "reference", subject: branchReference },
+							side: "below",
+							dryRun: false,
+						});
 						close();
 					}}
-					disabled={isReadOnly || !branchReference}
+					disabled={isReadOnly || commitInsertion.current.isLoading || !branchReference}
 				/>
 				{#if branchCommits.length > 1 && branchName}
 					<ContextMenuItem

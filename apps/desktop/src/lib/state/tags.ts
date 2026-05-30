@@ -96,3 +96,42 @@ export function invalidatesItem<
 export function invalidatesType(tag: ReduxTag): Tag<ReduxTag> {
 	return { type: tag };
 }
+
+export type ForgeScopeTag = {
+	type: ReduxTag;
+	id: string;
+};
+
+export function providesScopedList(tag: ReduxTag, scopeId: string): ForgeScopeTag {
+	return { type: tag, id: `${scopeId}:LIST` };
+}
+
+export function providesScopedItem<T extends string | number>(
+	tag: ReduxTag,
+	scopeId: string,
+	itemId: T,
+): [ForgeScopeTag, ForgeScopeTag] {
+	return [
+		{ type: tag, id: `${scopeId}:${itemId}` },
+		{ type: tag, id: `${scopeId}:LIST` },
+	];
+}
+
+export function invalidatesScopedList(tag: ReduxTag, scopeId: string): ForgeScopeTag {
+	return { type: tag, id: `${scopeId}:LIST` };
+}
+
+export function invalidatesScopedItem<T extends string | number | undefined>(
+	tag: ReduxTag,
+	scopeId: string,
+	itemId: T,
+): ForgeScopeTag {
+	if (itemId === undefined) {
+		return { type: tag, id: `${scopeId}:LIST` };
+	}
+	return { type: tag, id: `${scopeId}:${itemId}` };
+}
+
+export function invalidatesScope(scopeId: string, tags: ReduxTag[]): ForgeScopeTag[] {
+	return tags.map((tag) => ({ type: tag, id: `${scopeId}:LIST` }));
+}

@@ -7,15 +7,14 @@
 
 <script lang="ts">
 	import BranchNameTextbox from "$components/branch/BranchNameTextbox.svelte";
-	import { STACK_COMMAND_EXECUTOR } from "$lib/stacks/commandExecutorFactory";
-	import { STACK_COMMANDS } from "$lib/stacks/stackCommands";
-	import type { CreateCommitCommand } from "$lib/stacks/stackCommands";
+	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, Modal, TestId } from "@gitbutler/ui";
 
 	const { projectId, stackId }: AddDependentBranchModalProps = $props();
 
-	const commandExecutor = inject(STACK_COMMAND_EXECUTOR);
+	const stackService = inject(STACK_SERVICE);
+	const [createNewBranch, branchCreation] = stackService.newBranch;
 
 	let modal = $state<Modal>();
 	let branchName = $state<string>();
@@ -25,13 +24,14 @@
 	async function handleAddDependentBranch(close: () => void) {
 		if (!normalizedRefName) return;
 
-		const command: CreateCommitCommand = {
-			type: STACK_COMMANDS.CREATE_COMMIT,
+		await createNewBranch({
 			projectId,
 			stackId,
-			branchName: normalizedRefName,
-		};
-		await commandExecutor.execute(command);
+			request: {
+				targetPatch: undefined,
+				name: normalizedRefName,
+			},
+		});
 
 		close();
 	}
@@ -63,7 +63,8 @@
 			testId={TestId.BranchHeaderAddDependanttBranchModal_ActionButton}
 			style="pop"
 			type="submit"
-			disabled={!isBranchNameValid}>Add branch</Button
+			disabled={!isBranchNameValid}
+			loading={branchCreation.current.isLoading}>Add branch</Button
 		>
 	{/snippet}
 </Modal>
