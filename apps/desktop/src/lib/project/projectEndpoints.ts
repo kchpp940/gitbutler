@@ -49,10 +49,6 @@ export function buildProjectEndpoints(build: BackendEndpointBuilder) {
 			extraOptions: { command: "set_project_active" },
 			query: (args) => args,
 		}),
-		checkProjectHealth: build.mutation<ProjectInfo | null, { id: string }>({
-			extraOptions: { command: "check_project_health" },
-			query: (args) => args,
-		}),
 		updateProject: build.mutation<
 			void,
 			{ project: Project & { unset_bool?: boolean; unset_forge_override?: boolean } }

@@ -39,3 +39,4 @@ pub mod zip;
 pub mod env;
 
 pub mod csp;
+pub mod diagnostics;

@@ -38,10 +38,6 @@ import {
 	WorkingFilesBroadcast,
 } from "$lib/irc/workingFilesBroadcast.svelte";
 import { ModeService, MODE_SERVICE } from "$lib/mode/modeService";
-import {
-	createProjectLifecycleStore,
-	PROJECT_LIFECYCLE_STORE,
-} from "$lib/projectLifecycle/projectLifecycleStore";
 import { ProjectsService, PROJECTS_SERVICE } from "$lib/project/projectsService";
 import { PROMPT_SERVICE, PromptService } from "$lib/prompt/promptService";
 import RulesService, { RULES_SERVICE } from "$lib/rules/rulesService.svelte";
@@ -244,7 +240,6 @@ export function initDependencies(args: {
 	// PROJECT & DEPENDENCY MANAGEMENT
 	// ============================================================================
 
-	const projectLifecycleStore = createProjectLifecycleStore(projectsService, baseBranchService, posthog);
 	const dependencyService = new DependencyService(worktreeService);
 
 	// ============================================================================
@@ -349,7 +344,6 @@ export function initDependencies(args: {
 		[OPLOG_SERVICE, oplogService],
 		[ORGANIZATION_SERVICE, organizationService],
 		[POSTHOG_WRAPPER, posthog],
-		[PROJECT_LIFECYCLE_STORE, projectLifecycleStore],
 		[PROJECTS_SERVICE, projectsService],
 		[PROMPT_SERVICE, promptService],
 		[REMOTES_SERVICE, remotesService],

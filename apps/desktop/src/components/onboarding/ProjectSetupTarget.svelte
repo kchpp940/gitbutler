@@ -18,10 +18,9 @@
 		projectName: string;
 		remoteBranches: RemoteBranchInfo[];
 		onBranchSelected?: (branch: string[]) => void;
-		loading?: boolean;
 	}
 
-	const { projectId, projectName, remoteBranches, onBranchSelected, loading = false }: Props = $props();
+	const { projectId, projectName, remoteBranches, onBranchSelected }: Props = $props();
 
 	const posthog = inject(POSTHOG_WRAPPER);
 	const gitConfig = inject(GIT_CONFIG_SERVICE);
@@ -29,6 +28,7 @@
 	const gbConfig = $derived(gitConfig.gbConfig(projectId));
 	const gerritMode = $derived(gbConfig.response?.gitbutlerGerritMode ?? false);
 
+	let loading = $state<boolean>(false);
 	let showMoreInfo = $state<boolean>(false);
 
 	// split all the branches by the first '/' and gather the unique remote names

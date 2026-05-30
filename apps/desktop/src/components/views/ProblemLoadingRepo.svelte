@@ -1,98 +1,105 @@
 <script lang="ts">
+	import { goto } from "$app/navigation";
 	import RemoveProjectButton from "$components/projectSettings/RemoveProjectButton.svelte";
 	import IllustrationSplitLayout from "$components/shared/IllustrationSplitLayout.svelte";
 	import ProjectNameLabel from "$components/shared/ProjectNameLabel.svelte";
 	import ProjectSwitcher from "$components/shared/ProjectSwitcher.svelte";
+	import StartupDiagnosticsView from "$components/startupDiagnostics/StartupDiagnosticsView.svelte";
 	import AppLayout from "$components/views/AppLayout.svelte";
 	import loadErrorSvg from "$lib/assets/illustrations/load-error.svg?raw";
-	import { PROJECT_LIFECYCLE_STORE } from "$lib/projectLifecycle";
+	import { showError } from "$lib/error/showError";
+	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { STARTUP_DIAGNOSTICS_SERVICE } from "$lib/startupDiagnostics";
 	import { POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
 
-	import { Icon, Spacer } from "@gitbutler/ui";
+	import { Icon, Spacer, chipToasts } from "@gitbutler/ui";
+	import { isDefined } from "@gitbutler/ui/utils/typeguards";
 	import { onMount } from "svelte";
 
 	type Props = {
 		projectId: string;
-		error?: string;
 		projectTitle?: string;
+		error?: any;
 	};
 
-	const { projectId, error = undefined, projectTitle: fallbackTitle = undefined }: Props = $props();
+	const { projectId, projectTitle, error = undefined }: Props = $props();
 
-	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
+	const projectsService = inject(PROJECTS_SERVICE);
 	const posthog = inject(POSTHOG_WRAPPER);
+	const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
 
-	let isRepairing = $derived(lifecycleStore.status.current === "repairing");
-	let isDeleting = $derived(lifecycleStore.status.current === "loading");
-	let hasRecoverableIssues = $derived(lifecycleStore.hasRecoverableIssues.current);
-	let issues = $derived(lifecycleStore.issues.current);
-	let primaryError = $derived(error || issues[0]?.message || "An unknown error occurred");
-	let projectTitle = $derived(fallbackTitle || lifecycleStore.project.current?.title);
+	const isStartupError = $derived(diagnostics.isInStartupPhase() && error !== undefined);
 
+	let loading = $state(false);
 	let deleteConfirmationModal: ReturnType<typeof RemoveProjectButton> | undefined = $state();
 
 	async function onDeleteClicked() {
-		deleteConfirmationModal?.close();
-		await lifecycleStore.deleteProjectWithErrorHandling(projectId);
-	}
-
-	async function onRepairClicked() {
-		await lifecycleStore.repairProject(projectId);
+		loading = true;
+		try {
+			deleteConfirmationModal?.close();
+			await projectsService.deleteProject(projectId);
+			chipToasts.success("Project deleted");
+			goto("/");
+		} catch (err: any) {
+			console.error(err);
+			showError("Failed to delete project", err);
+		} finally {
+			loading = false;
+		}
 	}
 
 	onMount(() => {
-		posthog.capture("repo:load_failed", { error_message: primaryError });
+		posthog.capture("repo:load_failed", { error_message: String(error) });
+		if (isStartupError) {
+			diagnostics.injectRuntimeError("Repository Load Error", error, {
+				category: "backend",
+			});
+		}
 	});
 </script>
 
-<AppLayout {projectId} sidebarDisabled>
-	<IllustrationSplitLayout img={loadErrorSvg}>
-		<div class="problem">
-			<div class="project-name">
-				<ProjectNameLabel projectName={projectTitle} />
-			</div>
-			<h2 class="problem__title text-18 text-body text-bold">
-				There was a problem loading this repo
-			</h2>
-
-			<div class="problem__error text-12 text-body">
-				<Icon name="danger" color="var(--fill-danger-bg)" />
-				{primaryError}
-			</div>
-
-			{#if hasRecoverableIssues}
-				<div class="problem__repair">
-					<button
-						class="repair-btn"
-						disabled={isRepairing || isDeleting}
-						onclick={onRepairClicked}
-					>
-						{#if isRepairing}
-							<span>Repairing...</span>
-						{:else}
-							<span>Repair project</span>
-						{/if}
-					</button>
+{#if isStartupError}
+	<StartupDiagnosticsView onContinue={() => {}} showCloseButton />
+{:else}
+	<AppLayout {projectId} sidebarDisabled>
+		<IllustrationSplitLayout img={loadErrorSvg}>
+			<div class="problem">
+				<div class="project-name">
+					<ProjectNameLabel projectName={projectTitle} />
 				</div>
-			{/if}
+				<h2 class="problem__title text-18 text-body text-bold">
+					There was a problem loading this repo
+				</h2>
 
-			<div class="remove-project-btn">
-				<RemoveProjectButton
-					bind:this={deleteConfirmationModal}
-					isDeleting={isDeleting}
-					{onDeleteClicked}
-				/>
+				<div class="problem__error text-12 text-body">
+					<Icon name="danger" color="var(--fill-danger-bg)" />
+					{#if !isDefined(error)}
+						'An unknown error occured'
+					{:else if error instanceof Object && "message" in error}
+						{error.message}
+					{:else}
+						{error}
+					{/if}
+				</div>
+
+				<div class="remove-project-btn">
+					<RemoveProjectButton
+						bind:this={deleteConfirmationModal}
+						isDeleting={loading}
+						{onDeleteClicked}
+					/>
+				</div>
+
+				<Spacer dotted margin={0} />
+
+				<div class="problem__switcher">
+					<ProjectSwitcher {projectId} />
+				</div>
 			</div>
-
-			<Spacer dotted margin={0} />
-
-			<div class="problem__switcher">
-				<ProjectSwitcher {projectId} />
-			</div>
-		</div>
-	</IllustrationSplitLayout>
-</AppLayout>
+		</IllustrationSplitLayout>
+	</AppLayout>
+{/if}
 
 <style lang="postcss">
 	.project-name {
@@ -117,31 +124,6 @@
 		border-radius: var(--radius-m);
 		background-color: var(--bg-danger);
 		color: var(--text-1);
-	}
-
-	.problem__repair {
-		margin-bottom: 12px;
-	}
-
-	.repair-btn {
-		width: 100%;
-		padding: 12px 20px;
-		border: none;
-		border-radius: var(--radius-s);
-		background-color: var(--fill-warning-bg);
-		color: var(--text-1);
-		font-weight: 600;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.repair-btn:hover:not(:disabled) {
-		background-color: var(--fill-warning-bg-hover);
-	}
-
-	.repair-btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
 	}
 
 	.remove-project-btn {

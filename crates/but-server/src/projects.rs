@@ -22,19 +22,6 @@ struct SetProjectActiveParams {
     id: ProjectHandleOrLegacyProjectId,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CheckProjectHealthParams {
-    id: ProjectHandleOrLegacyProjectId,
-}
-
-#[derive(serde::Serialize)]
-struct ProjectInfo {
-    is_exclusive: bool,
-    db_error: Option<String>,
-    headsup: Option<String>,
-}
-
 struct ProjectHandles {
     // Watchers are kept alive, drop handles cleanup.
     _file_watcher: WatcherHandle,
@@ -196,25 +183,5 @@ pub async fn set_project_active(
         is_exclusive: true,
         db_error: None,
         headsup: None
-    }))
-}
-
-pub async fn check_project_health(
-    extra: &Extra,
-    app_settings_sync: AppSettingsWithDiskSync,
-    params: serde_json::Value,
-) -> Result<serde_json::Value> {
-    let params: CheckProjectHealthParams = serde_json::from_value(params).to_json_error()?;
-
-    let mut ctx: Context = params.id.try_into()?;
-    but_api::legacy::projects::prepare_project_for_activation(&mut ctx)?;
-
-    let active_projects = extra.active_projects.lock().await;
-    let is_exclusive = !active_projects.projects.contains_key(&params.id);
-
-    Ok(json!(ProjectInfo {
-        is_exclusive,
-        db_error: None,
-        headsup: None,
     }))
 }

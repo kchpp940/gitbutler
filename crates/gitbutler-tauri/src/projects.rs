@@ -86,52 +86,6 @@ pub fn set_project_active(
     }))
 }
 
-/// Check the health of a project without activating it.
-/// Returns the same ProjectInfo as set_project_active but does not change window state.
-#[tauri::command(async)]
-#[instrument(skip(window_state, app_settings_sync), err(Debug), ret)]
-pub fn check_project_health(
-    window_state: State<'_, WindowState>,
-    app_settings_sync: tauri::State<'_, AppSettingsWithDiskSync>,
-    id: ProjectHandleOrLegacyProjectId,
-) -> Result<Option<ProjectInfo>, json::Error> {
-    let mut ctx: Context = match id.clone().try_into() {
-        Ok(ctx) => ctx,
-        Err(err) => {
-            tracing::warn!("Project with ID {id} not found, cannot check health: {err}");
-            return Ok(None);
-        }
-    };
-    but_api::legacy::projects::prepare_project_for_activation(&mut ctx)?;
-
-    let db_error = assure_database_valid(ctx.project_data_dir())?;
-    let filter_error = warn_about_filters_and_git_lfs(&*ctx.repo.get()?)?;
-    for err in [&db_error, &filter_error] {
-        if let Some(err) = &err {
-            tracing::error!("{err}");
-        }
-    }
-    let is_exclusive = !window_state
-        .open_projects()
-        .iter()
-        .any(|p| match (p, id.clone()) {
-            (
-                ProjectHandleOrLegacyProjectId::ProjectHandle(handle),
-                ProjectHandleOrLegacyProjectId::ProjectHandle(id_handle),
-            ) => handle == id_handle,
-            (
-                ProjectHandleOrLegacyProjectId::LegacyProjectId(pid),
-                ProjectHandleOrLegacyProjectId::LegacyProjectId(id_pid),
-            ) => pid == id_pid,
-            _ => false,
-        });
-    Ok(Some(ProjectInfo {
-        is_exclusive,
-        db_error,
-        headsup: filter_error,
-    }))
-}
-
 /// Open the project with the given ID in a new Window, or focus an existing one.
 ///
 /// Note that this command is blocking the main thread just to prevent the chance for races

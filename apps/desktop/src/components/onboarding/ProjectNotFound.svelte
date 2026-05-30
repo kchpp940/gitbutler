@@ -1,10 +1,10 @@
 <script lang="ts">
+	import { goto } from "$app/navigation";
 	import RemoveProjectButton from "$components/projectSettings/RemoveProjectButton.svelte";
 	import IllustrationSplitLayout from "$components/shared/IllustrationSplitLayout.svelte";
 	import ProjectSwitcher from "$components/shared/ProjectSwitcher.svelte";
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import notFoundSvg from "$lib/assets/illustrations/not-found.svg?raw";
-	import { PROJECT_LIFECYCLE_STORE } from "$lib/projectLifecycle";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, InfoMessage, type MessageStyle, Spacer, TestId } from "@gitbutler/ui";
@@ -15,7 +15,6 @@
 	const { projectId }: Props = $props();
 
 	const projectsService = inject(PROJECTS_SERVICE);
-	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const projectQuery = $derived(projectsService.getProject(projectId, true));
 
 	let deleteSucceeded: boolean | undefined = $state(undefined);
@@ -23,13 +22,21 @@
 
 	async function stopTracking(id: string) {
 		isDeleting = true;
-		const success = await lifecycleStore.deleteProjectWithErrorHandling(id);
-		deleteSucceeded = success;
+		deleteProject: {
+			try {
+				await projectsService.deleteProject(id);
+			} catch {
+				deleteSucceeded = false;
+				break deleteProject;
+			}
+			deleteSucceeded = true;
+		}
 		isDeleting = false;
+		goto("/");
 	}
 
 	async function locate(id: string) {
-		await lifecycleStore.relocateProject(id);
+		await projectsService.relocateProject(id);
 	}
 
 	interface DeletionStatus {

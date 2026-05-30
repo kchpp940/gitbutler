@@ -21,8 +21,8 @@ use but_settings::AppSettingsWithDiskSync;
 #[cfg(feature = "irc")]
 use gitbutler_tauri::irc;
 use gitbutler_tauri::{
-    WindowState, action, askpass, broadcaster::Broadcaster, csp::csp_with_extras, env, logs, menu,
-    projects, settings, zip,
+    WindowState, action, askpass, broadcaster::Broadcaster, csp::csp_with_extras, diagnostics, env,
+    logs, menu, projects, settings, zip,
 };
 use tauri::{Emitter, Manager, generate_context};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -425,7 +425,6 @@ fn main() -> anyhow::Result<()> {
                 projects::list_projects,
                 projects::server_capabilities,
                 projects::set_project_active,
-                projects::check_project_health,
                 projects::open_project_in_window,
                 zip::get_logs_archive_path,
                 zip::get_project_archive_path,
@@ -515,6 +514,9 @@ fn main() -> anyhow::Result<()> {
                 commit::uncommit::tauri_commit_uncommit::commit_uncommit,
                 workspace::tauri_workspace_integrate_upstream::workspace_integrate_upstream,
                 platform::tauri_build_type::build_type,
+                diagnostics::commands::run_startup_diagnostics,
+                diagnostics::commands::run_single_diagnostic_check,
+                diagnostics::commands::get_diagnostic_check_ids,
             ])
             .menu(move |handle| menu::build(handle, &app_settings_for_menu))
             .on_window_event(|window, event| match event {

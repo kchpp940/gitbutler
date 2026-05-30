@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import ProjectNotFound from "$components/onboarding/ProjectNotFound.svelte";
+	import StartupDiagnosticsView from "$components/startupDiagnostics/StartupDiagnosticsView.svelte";
 	import IllustrationSplitLayout from "$components/shared/IllustrationSplitLayout.svelte";
 	import loadErrorSvg from "$lib/assets/illustrations/load-error.svg?raw";
 	import { parseQueryError } from "$lib/error/error";
+	import { STARTUP_DIAGNOSTICS_SERVICE } from "$lib/startupDiagnostics";
 	import { Button, InfoMessage } from "@gitbutler/ui";
 
 	type Props = {
@@ -14,6 +16,8 @@
 	const { projectId, error }: Props = $props();
 
 	const parsedError = $derived(parseQueryError(error));
+	const diagnostics = STARTUP_DIAGNOSTICS_SERVICE;
+	const isStartupError = $derived(diagnostics.isInStartupPhase());
 
 	function isMonday() {
 		const today = new Date();
@@ -28,7 +32,9 @@
 	}
 </script>
 
-{#if parsedError.code === "ProjectMissing"}
+{#if isStartupError}
+	<StartupDiagnosticsView onContinue={() => {}} showCloseButton />
+{:else if parsedError.code === "ProjectMissing"}
 	<ProjectNotFound {projectId} />
 {:else}
 	<IllustrationSplitLayout img={loadErrorSvg}>

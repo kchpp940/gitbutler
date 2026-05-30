@@ -1,17 +1,18 @@
 <script lang="ts">
+	import { goto } from "$app/navigation";
 	import CreateBranchModal from "$components/branch/CreateBranchModal.svelte";
 	import SyncButton from "$components/forge/SyncButton.svelte";
 	import IntegrateUpstreamModal from "$components/upstream/IntegrateUpstreamModal.svelte";
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
-	import { PROJECT_LIFECYCLE_STORE, ProjectCard } from "$lib/projectLifecycle";
+	import { handleAddProjectOutcome } from "$lib/project/project";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { isWorkspacePath } from "$lib/routes/routes.svelte";
+	import { isWorkspacePath, projectPath } from "$lib/routes/routes.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { SHORTCUT_SERVICE } from "$lib/shortcuts/shortcutService";
 	import { inject } from "@gitbutler/core/context";
-	import { Button, Icon, SelectItem, TestId, Tooltip } from "@gitbutler/ui";
+	import { Button, Icon, OptionsGroup, Select, SelectItem, TestId, Tooltip } from "@gitbutler/ui";
 	import { focusable } from "@gitbutler/ui/focus/focusable";
 
 	type Props = {
@@ -23,7 +24,6 @@
 	const { projectId, projectTitle, actionsDisabled = false }: Props = $props();
 
 	const projectsService = inject(PROJECTS_SERVICE);
-	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const serverCapabilitiesQuery = $derived(projectsService.serverCapabilities());
 	const canAddProjects = $derived(serverCapabilitiesQuery.response?.canAddProjects ?? true);
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);
@@ -69,9 +69,15 @@
 
 	const projects = $derived(projectsService.projects());
 
+	const mappedProjects = $derived(
+		projects.response?.map((project) => ({
+			value: project.id,
+			label: project.title,
+		})) || [],
+	);
+
 	let newProjectLoading = $state(false);
 	let projectSelectorOpen = $state(false);
-	let showProjectList = $state(false);
 
 	const isOnWorkspacePage = $derived(!!isWorkspacePath());
 
@@ -122,84 +128,83 @@
 
 	<div class="chrome-center" data-tauri-drag-region={useCustomTitleBar}>
 		<div class="chrome-selector-wrapper">
-			<div class="project-selector-trigger">
-				<Button
-					testId={TestId.ChromeHeaderProjectSelector}
-					reversedDirection
-					width="auto"
-					kind="outline"
-					isDropdown
-					dropdownOpen={showProjectList}
-					class="project-selector-btn"
-					onclick={() => (showProjectList = !showProjectList)}
-				>
-					{#snippet custom()}
-						<div class="project-selector-btn__content">
-							<Icon name="repo" color="var(--text-2)" />
-							<span class="text-12 text-bold">{projectTitle}</span>
-						</div>
-					{/snippet}
-				</Button>
+			<Select
+				searchable
+				value={projectId}
+				options={mappedProjects}
+				loading={newProjectLoading}
+				disabled={newProjectLoading}
+				onselect={(value: string, modifiers?) => {
+					if (modifiers?.meta) {
+						projectsService.openProjectInNewWindow(value);
+					} else {
+						goto(projectPath(value));
+					}
+				}}
+				ontoggle={(isOpen) => (projectSelectorOpen = isOpen)}
+				popupAlign="center"
+				customWidth={280}
+			>
+				{#snippet customSelectButton()}
+					<Button
+						testId={TestId.ChromeHeaderProjectSelector}
+						reversedDirection
+						width="auto"
+						kind="outline"
+						isDropdown
+						dropdownOpen={projectSelectorOpen}
+						class="project-selector-btn"
+					>
+						{#snippet custom()}
+							<div class="project-selector-btn__content">
+								<Icon name="repo" color="var(--text-2)" />
+								<span class="text-12 text-bold">{projectTitle}</span>
+							</div>
+						{/snippet}
+					</Button>
+				{/snippet}
 
-				{#if showProjectList}
-					<div class="project-selector-dropdown">
-						<div class="project-selector-dropdown__list">
-							{#if projects.response}
-								{#each projects.response as project}
-									<button
-										type="button"
-										class="project-selector-dropdown__card"
-										onclick={() => {
-											showProjectList = false;
-											if (project.id !== projectId) {
-												lifecycleStore.switchToProject(project.id);
-											}
-										}}
-									>
-										<ProjectCard
-											{project}
-											selected={project.id === projectId}
-											onOpen={() => {
-												showProjectList = false;
-												lifecycleStore.switchToProject(project.id);
-											}}
-										/>
-									</button>
-								{/each}
-							{/if}
-						</div>
+				{#snippet itemSnippet({ item, highlighted })}
+					<SelectItem selected={item.value === projectId} {highlighted}>
+						{item.label}
+					</SelectItem>
+				{/snippet}
 
-						<div class="project-selector-dropdown__actions">
-							{#if canAddProjects}
-								<SelectItem
-									icon="plus"
-									testId={TestId.ChromeHeaderProjectSelectorAddLocalProject}
-									loading={newProjectLoading}
-									onClick={async () => {
-										newProjectLoading = true;
-										try {
-											await lifecycleStore.addProjectAndNavigate();
-										} finally {
-											newProjectLoading = false;
-										}
-									}}
-								>
-									Add local repository
-								</SelectItem>
-							{/if}
-							<SelectItem
-								icon="clone"
-								onClick={() => {
-									showProjectList = false;
-									lifecycleStore.navigateToClone();
-								}}
-							>
-								Clone repository
-							</SelectItem>
-						</div>
-					</div>
-				{/if}
-			</div>
+				<OptionsGroup>
+					{#if canAddProjects}
+						<SelectItem
+							icon="plus"
+							testId={TestId.ChromeHeaderProjectSelectorAddLocalProject}
+							loading={newProjectLoading}
+							onClick={async () => {
+								newProjectLoading = true;
+								try {
+									const outcome = await projectsService.addProject();
+									if (!outcome) {
+										// User cancelled the project creation
+										newProjectLoading = false;
+										return;
+									}
+
+									handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+								} finally {
+									newProjectLoading = false;
+								}
+							}}
+						>
+							Add local repository
+						</SelectItem>
+					{/if}
+					<SelectItem
+						icon="clone"
+						onClick={() => {
+							goto("/onboarding/clone");
+						}}
+					>
+						Clone repository
+					</SelectItem>
+				</OptionsGroup>
+			</Select>
 			{#if singleBranchMode}
 				<Tooltip text="Current branch">
 					<div class="chrome-current-branch">
@@ -264,53 +269,6 @@
 		display: flex;
 		position: relative;
 		overflow: hidden;
-	}
-
-	.project-selector-trigger {
-		position: relative;
-	}
-
-	.project-selector-dropdown {
-		display: flex;
-		z-index: 100;
-		position: absolute;
-		top: 100%;
-		left: 50%;
-		flex-direction: column;
-		min-width: 360px;
-		max-height: 480px;
-		padding: 8px;
-		overflow-y: auto;
-		gap: 8px;
-		transform: translateX(-50%);
-		border: 1px solid var(--border-1);
-		border-radius: var(--radius-m);
-		background-color: var(--bg-2);
-		box-shadow: var(--shadow-popup);
-	}
-
-	.project-selector-dropdown__list {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.project-selector-dropdown__card {
-		width: 100%;
-		padding: 0;
-		border: none;
-		background: none;
-		color: inherit;
-		font: inherit;
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.project-selector-dropdown__actions {
-		display: flex;
-		padding-top: 8px;
-		gap: 4px;
-		border-top: 1px solid var(--border-1);
 	}
 
 	:global(.chrome-header.single-branch .project-selector-btn) {
