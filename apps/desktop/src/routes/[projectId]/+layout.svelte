@@ -13,7 +13,6 @@
 	import { BACKEND } from "$lib/backend";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
-	import { showError } from "$lib/error/showError";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { GITHUB_CLIENT } from "$lib/forge/github/githubClient";
 	import { useGitHubAccessToken } from "$lib/forge/github/hooks.svelte";
@@ -26,7 +25,8 @@
 	import { projectChannel } from "$lib/irc/protocol";
 	import { WORKING_FILES_BROADCAST } from "$lib/irc/workingFilesBroadcast.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
-	import { showInfo, showWarning } from "$lib/notifications/toasts";
+	import { PROJECT_LIFECYCLE_STORE } from "$lib/projectLifecycle";
+	import ProjectHealthBanner from "$lib/projectLifecycle/ProjectHealthBanner.svelte";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
@@ -35,7 +35,7 @@
 	import { CLIENT_STATE } from "$lib/state/clientState.svelte";
 	import { combineResults } from "$lib/state/helpers";
 	import { invalidatesList, ReduxTag } from "$lib/state/tags";
-	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
+	import { POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { debounce } from "$lib/utils/debounce";
 	import { WORKTREE_SERVICE } from "$lib/worktree/worktreeService.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -56,13 +56,15 @@
 	const posthog = inject(POSTHOG_WRAPPER);
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settingsStore = settingsService.appSettings;
+	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const projectsService = inject(PROJECTS_SERVICE);
 	const clientState = inject(CLIENT_STATE);
 
 	// Project data
 	const projectsQuery = $derived(projectsService.projects());
 	const projects = $derived(projectsQuery.response);
-	const currentProject = $derived(projects?.find((p) => p.id === projectId));
+	const currentProject = $derived(lifecycleStore.project.current);
+	const lifecycleStatus = $derived(lifecycleStore.status.current);
 
 	// =============================================================================
 	// REPOSITORY & BRANCH MANAGEMENT
@@ -166,7 +168,7 @@
 			githubError: githubAccessToken.error.current,
 			gitlabAuthenticated: !!gitlabAccessToken.accessToken.current,
 			detectedForgeProvider: detectedForgeProvider ?? undefined,
-			forgeOverride: projects?.find((project) => project.id === projectId)?.forge_override,
+			forgeOverride: currentProject?.forge_override,
 		});
 	});
 
@@ -350,55 +352,21 @@
 	// PROJECT LIFECYCLE & NAVIGATION
 	// =============================================================================
 
-	// Setup auto-fetch when project changes
 	$effect(() => {
 		if (projectId) {
+			lifecycleStore.openProject(projectId);
 			untrack(() => setupFetchInterval());
 		} else {
-			goto("/onboarding");
+			lifecycleStore.navigateToOnboarding();
 		}
 	});
-
-	// Set active project and handle notifications
-	async function setActiveProjectOrRedirect(projectId: string) {
-		const dontShowAgainKey = `git-filters--dont-show-again--${projectId}`;
-		try {
-			const info = await projectsService.setActiveProject(projectId);
-			posthog.captureOnboarding(OnboardingEvent.SetProjectActive);
-
-			if (!info) return;
-
-			if (!info.is_exclusive) {
-				showInfo(
-					"Just FYI, this project is already open in another window",
-					"There might be some unexpected behavior if you open it in multiple windows",
-				);
-			}
-
-			if (info.db_error) {
-				showError("The database was corrupted", info.db_error);
-			}
-
-			if (info.headsup && localStorage.getItem(dontShowAgainKey) !== "1") {
-				showWarning("Important PSA", info.headsup, {
-					label: "Don't show again",
-					onClick: (dismiss) => {
-						localStorage.setItem(dontShowAgainKey, "1");
-						dismiss();
-					},
-				});
-			}
-		} catch (error: unknown) {
-			posthog.captureOnboarding(OnboardingEvent.SetProjectActiveFailed);
-			showError("Failed to set the project active", error);
-		}
-	}
 
 	$effect(() => {
-		setActiveProjectOrRedirect(projectId);
+		if (lifecycleStore.error.current) {
+			goto("/");
+		}
 	});
 
-	// Clear backend API state when project changes
 	$effect(() => {
 		if (projectId) {
 			clientState.backendApi.util.resetApiState();
@@ -450,31 +418,38 @@
 <ProjectSettingsShortcutHandler {projectId} />
 <ProjectShortcutHandler />
 
-<ReduxResult {projectId} result={combineResults(baseBranchQuery.result, modeQuery.result)}>
-	{#snippet children([baseBranch, mode], { projectId })}
-		{#if !baseBranch}
-			<NoBaseBranch {projectId} />
-		{:else if baseBranch}
-			{#if mode.type === "OpenWorkspace" || mode.type === "Edit" || ($settingsStore?.featureFlags.singleBranch && mode.subject.branchName)}
-				<div class="view-wrap" role="group" ondragover={(e) => e.preventDefault()}>
-					<AppLayout {projectId} sidebarDisabled={mode.type === "Edit"}>
+{#if lifecycleStatus === "loading" || lifecycleStatus === "activating" || lifecycleStatus === "checking"}
+	<FullviewLoading />
+{:else if lifecycleStatus === "error"}
+	<ProblemLoadingRepo {projectId} />
+{:else}
+	<ReduxResult {projectId} result={combineResults(baseBranchQuery.result, modeQuery.result)}>
+		{#snippet children([baseBranch, mode], { projectId })}
+			{#if !baseBranch}
+				<NoBaseBranch {projectId} />
+			{:else if baseBranch}
+				<ProjectHealthBanner {projectId} {lifecycleStore} />
+				{#if mode.type === "OpenWorkspace" || mode.type === "Edit" || ($settingsStore?.featureFlags.singleBranch && mode.subject.branchName)}
+					<div class="view-wrap" role="group" ondragover={(e) => e.preventDefault()}>
+						<AppLayout {projectId} sidebarDisabled={mode.type === "Edit"}>
+							{@render pageChildren()}
+						</AppLayout>
+					</div>
+				{:else if mode.type === "OutsideWorkspace"}
+					<NotOnGitButlerBranch {projectId} {baseBranch}>
 						{@render pageChildren()}
-					</AppLayout>
-				</div>
-			{:else if mode.type === "OutsideWorkspace"}
-				<NotOnGitButlerBranch {projectId} {baseBranch}>
-					{@render pageChildren()}
-				</NotOnGitButlerBranch>
+					</NotOnGitButlerBranch>
+				{/if}
 			{/if}
-		{/if}
-	{/snippet}
-	{#snippet loading()}
-		<FullviewLoading />
-	{/snippet}
-	{#snippet error(baseError)}
-		<ProblemLoadingRepo {projectId} error={baseError} />
-	{/snippet}
-</ReduxResult>
+		{/snippet}
+		{#snippet loading()}
+			<FullviewLoading />
+		{/snippet}
+		{#snippet error(baseError)}
+			<ProblemLoadingRepo {projectId} />
+		{/snippet}
+	</ReduxResult>
+{/if}
 
 <IrcChatWindow {projectId} />
 

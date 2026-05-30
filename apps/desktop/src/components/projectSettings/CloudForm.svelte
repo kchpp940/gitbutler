@@ -2,7 +2,7 @@
 	import AiPromptSelect from "$components/projectSettings/AIPromptSelect.svelte";
 	import AccessTokenSignIn from "$components/shared/AccessTokenSignIn.svelte";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
-	import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
+	import { projectAiExperimentalFeaturesEnabled, projectAiGenEnabled } from "$lib/config/config";
 	import { useSettingsModal } from "$lib/settings/settingsModal.svelte";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -12,7 +12,9 @@
 
 	const userService = inject(USER_SERVICE);
 	const { openGeneralSettings } = useSettingsModal();
-	const projectDraftStore = PROJECT_DRAFT_STORE;
+
+	const aiGenEnabled = $derived(projectAiGenEnabled(projectId));
+	const experimentalAiGenEnabled = $derived(projectAiExperimentalFeaturesEnabled(projectId));
 </script>
 
 <SettingsSection>
@@ -41,18 +43,16 @@
 			{#snippet actions()}
 				<Toggle
 					id="aiGenEnabled"
-					checked={projectDraftStore.draft.aiGenEnabled ?? false}
+					checked={$aiGenEnabled}
 					onclick={() => {
-						projectDraftStore.updateAISettings(projectId, {
-							aiGenEnabled: !projectDraftStore.draft.aiGenEnabled,
-						});
+						$aiGenEnabled = !$aiGenEnabled;
 					}}
 				/>
 			{/snippet}
 		</CardGroup.Item>
 	</CardGroup>
 
-	{#if projectDraftStore.draft.aiGenEnabled}
+	{#if $aiGenEnabled}
 		<CardGroup>
 			<CardGroup.Item labelFor="aiExperimental">
 				{#snippet title()}
@@ -65,11 +65,9 @@
 				{#snippet actions()}
 					<Toggle
 						id="aiExperimental"
-						checked={projectDraftStore.draft.aiExperimentalFeaturesEnabled ?? false}
+						checked={$experimentalAiGenEnabled}
 						onclick={() => {
-							projectDraftStore.updateAISettings(projectId, {
-								aiExperimentalFeaturesEnabled: !projectDraftStore.draft.aiExperimentalFeaturesEnabled,
-							});
+							$experimentalAiGenEnabled = !$experimentalAiGenEnabled;
 						}}
 					/>
 				{/snippet}

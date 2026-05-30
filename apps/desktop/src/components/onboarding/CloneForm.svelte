@@ -1,13 +1,10 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
 	import { BACKEND } from "$lib/backend";
 	import { parseError } from "$lib/error/parser";
 	import { GIT_SERVICE } from "$lib/git/gitService";
 	import { parseRemoteUrl } from "$lib/git/gitUrl";
-	import { handleAddProjectOutcome } from "$lib/project/project";
-	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { projectPath } from "$lib/routes/routes.svelte";
+	import { PROJECT_LIFECYCLE_STORE } from "$lib/projectLifecycle";
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
 	import { persisted } from "@gitbutler/shared/persisted";
@@ -16,7 +13,7 @@
 	import * as Sentry from "@sentry/sveltekit";
 	import { onMount } from "svelte";
 
-	const projectsService = inject(PROJECTS_SERVICE);
+	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const gitService = inject(GIT_SERVICE);
 	const posthog = inject(POSTHOG_WRAPPER);
 	const backend = inject(BACKEND);
@@ -79,18 +76,7 @@
 			const targetDir = await backend.joinPath(targetDirPath, remoteUrl.name);
 
 			await gitService.cloneRepo(repositoryUrl, targetDir);
-
-			posthog.captureOnboarding(OnboardingEvent.ClonedProject);
-			const outcome = await projectsService.addProject(targetDir);
-			if (!outcome) {
-				posthog.captureOnboarding(
-					OnboardingEvent.ClonedProjectFailed,
-					"Failed to add project after cloning",
-				);
-				throw new Error("Failed to add project after cloning.");
-			}
-
-			handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
+			await lifecycleStore.addProjectFromCloneAndNavigate(targetDir);
 		} catch (e) {
 			Sentry.captureException(e);
 			const errorMessage = getErrorMessage(e);
@@ -107,7 +93,7 @@
 		if (history.length > 0) {
 			history.back();
 		} else {
-			goto("/");
+			lifecycleStore.navigateToHome();
 		}
 	}
 </script>

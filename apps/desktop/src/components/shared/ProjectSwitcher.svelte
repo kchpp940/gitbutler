@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
-	import { handleAddProjectOutcome } from "$lib/project/project";
+	import { PROJECT_LIFECYCLE_STORE, ProjectCard } from "$lib/projectLifecycle";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { projectPath } from "$lib/routes/routes.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, OptionsGroup, Select, SelectItem } from "@gitbutler/ui";
 	import { untrack } from "svelte";
@@ -10,97 +8,78 @@
 	const { projectId }: { projectId?: string } = $props();
 
 	const projectsService = inject(PROJECTS_SERVICE);
+	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const projectsQuery = $derived(projectsService.projects());
 	const serverCapabilitiesQuery = $derived(projectsService.serverCapabilities());
 	const canAddProjects = $derived(serverCapabilitiesQuery.response?.canAddProjects ?? true);
-
-	let selectedId = $state<string | undefined>(untrack(() => projectId));
-
-	const mappedProjects = $derived(
-		projectsQuery.response?.map((project) => ({
-			value: project.id,
-			label: project.title,
-		})) || [],
-	);
 
 	let newProjectLoading = $state(false);
 	let cloneProjectLoading = $state(false);
 </script>
 
 <div class="project-switcher">
-	<Select
-		value={selectedId}
-		options={mappedProjects}
-		label="Switch to another project"
-		wide
-		onselect={(value) => {
-			selectedId = value;
-		}}
-		searchable
-	>
-		{#snippet itemSnippet({ item, highlighted })}
-			<SelectItem selected={item.value === selectedId} {highlighted}>
-				{item.label}
-			</SelectItem>
-		{/snippet}
+	<div class="project-switcher__cards">
+		{#if projectsQuery.response}
+			{#each projectsQuery.response as project}
+				<ProjectCard
+					{project}
+					selected={project.id === projectId}
+					onOpen={() => lifecycleStore.switchToProject(project.id)}
+				/>
+			{/each}
+		{/if}
+	</div>
 
-		<OptionsGroup>
-			{#if canAddProjects}
-				<SelectItem
-					icon="plus"
-					loading={newProjectLoading}
-					onClick={async () => {
-						newProjectLoading = true;
-						try {
-							const outcome = await projectsService.addProject();
-							if (!outcome) {
-								// User cancelled the project creation
-								newProjectLoading = false;
-								return;
-							}
-							handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
-						} finally {
-							newProjectLoading = false;
-						}
-					}}
-				>
-					Add local repository
-				</SelectItem>
-			{/if}
-			<SelectItem
-				icon="clone"
-				loading={cloneProjectLoading}
-				onClick={async () => {
-					cloneProjectLoading = true;
+	<div class="project-switcher__actions">
+		{#if canAddProjects}
+			<Button
+				icon="plus"
+				loading={newProjectLoading}
+				onclick={async () => {
+					newProjectLoading = true;
 					try {
-						goto("/onboarding/clone");
+						await lifecycleStore.addProjectAndNavigate();
 					} finally {
-						cloneProjectLoading = false;
+						newProjectLoading = false;
 					}
 				}}
 			>
-				Clone repository
-			</SelectItem>
-		</OptionsGroup>
-	</Select>
-
-	<Button
-		style="pop"
-		icon="chevron-right"
-		disabled={selectedId === projectId}
-		onclick={() => {
-			if (selectedId) goto(projectPath(selectedId));
-		}}
-	>
-		Open project
-	</Button>
+				Add local repository
+			</Button>
+		{/if}
+		<Button
+			icon="clone"
+			loading={cloneProjectLoading}
+			onclick={async () => {
+				cloneProjectLoading = true;
+				try {
+					lifecycleStore.navigateToClone();
+				} finally {
+					cloneProjectLoading = false;
+				}
+			}}
+		>
+			Clone repository
+		</Button>
+	</div>
 </div>
 
 <style lang="postcss">
 	.project-switcher {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-end;
-		gap: 10px;
+		gap: 16px;
+	}
+
+	.project-switcher__cards {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.project-switcher__actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
 	}
 </style>

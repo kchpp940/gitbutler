@@ -6,10 +6,10 @@
 	import RemoveProjectForm from "$components/projectSettings/RemoveProjectForm.svelte";
 	import { Spacer } from "@gitbutler/ui";
 
-	const { projectId, projectPath }: { projectId: string; projectPath: string } = $props();
+	const { projectId }: { projectId: string } = $props();
 </script>
 
-<DetailsForm {projectId} {projectPath} />
+<DetailsForm {projectId} />
 <BaseBranchSwitch {projectId} />
 <GerritForm {projectId} />
 <ForgeForm {projectId} />

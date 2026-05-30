@@ -1,16 +1,16 @@
 <script lang="ts">
 	import GithubIntegration from "$components/settings/GithubIntegration.svelte";
 	import GitlabIntegration from "$components/settings/GitlabIntegration.svelte";
-	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
+	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
+	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Spacer, Toggle } from "@gitbutler/ui";
 
-	const globalDraftStore = GLOBAL_DRAFT_STORE;
+	const settingsService = inject(SETTINGS_SERVICE);
+	const appSettings = settingsService.appSettings;
 
-	const reviews = $derived(globalDraftStore.draft.appSettings.reviews);
-
-	function toggleAutoFillPrDescription() {
-		globalDraftStore.updateAppSettings({
-			reviews: { ...globalDraftStore.draft.appSettings.reviews, autoFillPrDescriptionFromCommit: !reviews?.autoFillPrDescriptionFromCommit },
+	async function toggleAutoFillPrDescription() {
+		await settingsService.updateReviews({
+			autoFillPrDescriptionFromCommit: !$appSettings?.reviews.autoFillPrDescriptionFromCommit,
 		});
 	}
 </script>
@@ -29,7 +29,7 @@
 		{#snippet actions()}
 			<Toggle
 				id="autoFillPrDescription"
-				checked={reviews?.autoFillPrDescriptionFromCommit ?? true}
+				checked={$appSettings?.reviews.autoFillPrDescriptionFromCommit ?? true}
 				onclick={toggleAutoFillPrDescription}
 			/>
 		{/snippet}

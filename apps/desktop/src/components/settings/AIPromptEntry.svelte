@@ -6,20 +6,20 @@
 	interface Props {
 		prompt: UserPrompt;
 		displayMode: "readOnly" | "writable";
-		deletePrompt?: () => void;
-		onUpdate?: (prompt: UserPrompt) => void;
+		deletePrompt?: (prompt: UserPrompt) => void;
 	}
 
-	let { prompt, displayMode = "writable", deletePrompt, onUpdate }: Props = $props();
+	let { prompt = $bindable(), displayMode = "writable", deletePrompt }: Props = $props();
 
 	let expanded = $state(false);
 	let editing = $state(false);
-	let promptMessages = $state<typeof prompt.prompt>([]);
+	let promptMessages = $state($state.snapshot(prompt.prompt));
 	let promptName = $state(prompt.name);
 	const initialName = $derived(promptName);
 	let isInEditing = $state(false) as boolean;
-	let errorMessages = $state([] as number[]);
+	let errorMessages = $state([]) as number[];
 
+	// Ensure the prompt messages have a default user prompt
 	$effect(() => {
 		if (promptMessages.length === 0) {
 			promptMessages = [
@@ -61,12 +61,9 @@
 			promptName = initialName;
 		}
 
-		onUpdate?.({
-			...prompt,
-			name: promptName,
-			prompt: promptMessages,
-		});
-
+		prompt.prompt = promptMessages;
+		prompt.name = promptName;
+		prompt = prompt;
 		editing = false;
 	}
 
@@ -165,7 +162,7 @@
 						style="danger"
 						onclick={(e: MouseEvent) => {
 							e.stopPropagation();
-							deletePrompt?.();
+							deletePrompt?.(prompt);
 						}}
 						icon="bin">Delete</Button
 					>

@@ -1,40 +1,46 @@
 <script lang="ts">
-	import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
+	import ReduxResult from "$components/shared/ReduxResult.svelte";
+	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Spacer, Textarea, Textbox } from "@gitbutler/ui";
 
-	const { projectId, projectPath }: { projectId: string; projectPath: string } = $props();
-	const projectDraftStore = PROJECT_DRAFT_STORE;
+	const { projectId }: { projectId: string } = $props();
+
+	const projectsService = inject(PROJECTS_SERVICE);
+	const projectQuery = $derived(projectsService.getProject(projectId));
 </script>
 
 <CardGroup>
-	<div class="fields-wrapper">
-		<Textbox label="Project path" readonly id="path" value={projectPath} />
-		<div class="description-wrapper">
-			<Textbox
-				label="Project name"
-				id="name"
-				placeholder="Project name can't be empty"
-				value={projectDraftStore.draft.title}
-				required
-				onchange={(value: string) => {
-					projectDraftStore.updateProjectDetails(projectId, { title: value });
-				}}
-			/>
-			<Textarea
-				id="description"
-				minRows={3}
-				maxRows={6}
-				placeholder="Project description"
-				value={projectDraftStore.draft.description}
-				oninput={(e: Event) => {
-					const target = e.currentTarget as HTMLTextAreaElement;
-					projectDraftStore.updateProjectDetails(projectId, {
-						description: target.value,
-					});
-				}}
-			/>
-		</div>
-	</div>
+	<ReduxResult {projectId} result={projectQuery.result}>
+		{#snippet children(project)}
+			<div class="fields-wrapper">
+				<Textbox label="Project path" readonly id="path" value={project?.path} />
+				<div class="description-wrapper">
+					<Textbox
+						label="Project name"
+						id="name"
+						placeholder="Project name can't be empty"
+						value={project.title}
+						required
+						onchange={(value: string) => {
+							projectsService.updateProject({ ...project, title: value });
+						}}
+					/>
+					<Textarea
+						id="description"
+						minRows={3}
+						maxRows={6}
+						placeholder="Project description"
+						value={project.description}
+						oninput={(e: Event) => {
+							const target = e.currentTarget as HTMLTextAreaElement;
+							projectsService.updateProject({ ...project, description: target.value });
+						}}
+					/>
+				</div>
+			</div>
+		{/snippet}
+	</ReduxResult>
 </CardGroup>
 
 <Spacer />

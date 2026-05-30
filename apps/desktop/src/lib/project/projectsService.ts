@@ -53,6 +53,10 @@ export class ProjectsService {
 		return await this.backendApi.endpoints.setProjectActive.mutate({ id: projectId });
 	}
 
+	async checkProjectHealth(projectId: string): Promise<ProjectInfo | null> {
+		return await this.backendApi.endpoints.checkProjectHealth.mutate({ id: projectId });
+	}
+
 	async updateProject(project: Project & { unset_bool?: boolean; unset_forge_override?: boolean }) {
 		await this.backendApi.endpoints.updateProject.mutate({ project });
 	}

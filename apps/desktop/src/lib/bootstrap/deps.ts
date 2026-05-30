@@ -38,6 +38,10 @@ import {
 	WorkingFilesBroadcast,
 } from "$lib/irc/workingFilesBroadcast.svelte";
 import { ModeService, MODE_SERVICE } from "$lib/mode/modeService";
+import {
+	createProjectLifecycleStore,
+	PROJECT_LIFECYCLE_STORE,
+} from "$lib/projectLifecycle/projectLifecycleStore";
 import { ProjectsService, PROJECTS_SERVICE } from "$lib/project/projectsService";
 import { PROMPT_SERVICE, PromptService } from "$lib/prompt/promptService";
 import RulesService, { RULES_SERVICE } from "$lib/rules/rulesService.svelte";
@@ -86,11 +90,6 @@ import {
 	type ExternalLinkService,
 } from "@gitbutler/ui/utils/externalLinkService";
 import { IMECompositionHandler, IME_COMPOSITION_HANDLER } from "@gitbutler/ui/utils/imeHandling";
-import { GLOBAL_SETTINGS_LOADER, GlobalSettingsLoader } from "$lib/settings/settingsLoader";
-import { GLOBAL_SETTINGS_SAVER, GlobalSettingsSaver } from "$lib/settings/settingsSaver";
-import { SETTINGS_ORCHESTRATOR, SettingsOrchestrator } from "$lib/settings/settingsOrchestrator";
-import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
-import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
 import type { AppSettings } from "@gitbutler/but-sdk";
 import { PUBLIC_API_BASE_URL } from "$env/static/public";
 
@@ -245,6 +244,7 @@ export function initDependencies(args: {
 	// PROJECT & DEPENDENCY MANAGEMENT
 	// ============================================================================
 
+	const projectLifecycleStore = createProjectLifecycleStore(projectsService, baseBranchService, posthog);
 	const dependencyService = new DependencyService(worktreeService);
 
 	// ============================================================================
@@ -293,33 +293,6 @@ export function initDependencies(args: {
 		posthog,
 		shortcutService,
 		Number(appSettings.ui.checkForUpdatesIntervalInSeconds) * 1000,
-	);
-
-	const globalSettingsLoader = new GlobalSettingsLoader(
-		settingsService,
-		gitConfig,
-		secretsService,
-		userService,
-		uiState,
-		aiService,
-		updaterService,
-	);
-
-	const globalSettingsSaver = new GlobalSettingsSaver(
-		settingsService,
-		gitConfig,
-		secretsService,
-		userService,
-		uiState,
-		updaterService,
-	);
-
-	const settingsOrchestrator = new SettingsOrchestrator(
-		GLOBAL_DRAFT_STORE,
-		PROJECT_DRAFT_STORE,
-		globalSettingsLoader,
-		globalSettingsSaver,
-		uiState,
 	);
 
 	// ============================================================================
@@ -376,6 +349,7 @@ export function initDependencies(args: {
 		[OPLOG_SERVICE, oplogService],
 		[ORGANIZATION_SERVICE, organizationService],
 		[POSTHOG_WRAPPER, posthog],
+		[PROJECT_LIFECYCLE_STORE, projectLifecycleStore],
 		[PROJECTS_SERVICE, projectsService],
 		[PROMPT_SERVICE, promptService],
 		[REMOTES_SERVICE, remotesService],
@@ -384,9 +358,6 @@ export function initDependencies(args: {
 		[SECRET_SERVICE, secretsService],
 		[SETTINGS_SERVICE, settingsService],
 		[TERMINAL_SERVICE, terminalService],
-		[GLOBAL_SETTINGS_LOADER, globalSettingsLoader],
-		[GLOBAL_SETTINGS_SAVER, globalSettingsSaver],
-		[SETTINGS_ORCHESTRATOR, settingsOrchestrator],
 		[SHORTCUT_SERVICE, shortcutService],
 		[STACK_SERVICE, stackService],
 		[REORDER_DROPZONE_FACTORY, reorderDropzoneFactory],

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import ThemeSelector from "$components/projectSettings/ThemeSelector.svelte";
-	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
@@ -15,16 +14,28 @@
 	import { LIGHT_THEMES, DARK_THEMES, setSyntaxThemes } from "@gitbutler/ui/utils/shikiHighlighter";
 	import type { ScrollbarVisilitySettings } from "@gitbutler/ui";
 
-	const globalDraftStore = GLOBAL_DRAFT_STORE;
 	const uiState = inject(UI_STATE);
 
-	$effect(() => {
-		setSyntaxThemes(
-			globalDraftStore.draft.uiPreferences.syntaxThemeLight ?? "github-light-default",
-			globalDraftStore.draft.uiPreferences.syntaxThemeDark ?? "github-dark-default",
-		);
-	});
+	const pathFirst = uiState.global.pathFirst;
+	const allInOneDiff = uiState.global.allInOneDiff;
+	const highlightDiffs = uiState.global.highlightDiffs;
+	const syntaxThemeLight = uiState.global.syntaxThemeLight;
+	const syntaxThemeDark = uiState.global.syntaxThemeDark;
+	const tabSize = uiState.global.tabSize;
+	const diffLigatures = uiState.global.diffLigatures;
+	const wrapText = uiState.global.wrapText;
+	const diffFont = uiState.global.diffFont;
+	const strongContrast = uiState.global.strongContrast;
+	const colorBlindFriendly = uiState.global.colorBlindFriendly;
+	const inlineUnifiedDiffs = uiState.global.inlineUnifiedDiffs;
+	const svgAsImage = uiState.global.svgAsImage;
+	const scrollbarVisibilityState = uiState.global.scrollbarVisibilityState;
+	const defaultFileListMode = uiState.global.defaultFileListMode;
 
+	// Sync persisted syntax theme settings to the shiki highlighter.
+	$effect(() => {
+		setSyntaxThemes(syntaxThemeLight.current, syntaxThemeDark.current);
+	});
 	const diff = `@@ -56,10 +56,10 @@
 			// Diff example
 			projectName={project.title}
@@ -44,7 +55,7 @@
 			"scrollBarVisibilityType",
 		) as ScrollbarVisilitySettings;
 
-		globalDraftStore.updateUIPreferences({ scrollbarVisibilityState: selectedScrollbarVisibility });
+		scrollbarVisibilityState.set(selectedScrollbarVisibility);
 	}
 </script>
 
@@ -52,10 +63,7 @@
 	{#snippet title()}
 		Theme
 	{/snippet}
-	<ThemeSelector
-		currentTheme={globalDraftStore.draft.uiPreferences.theme ?? "system"}
-		onThemeChange={(theme) => globalDraftStore.updateUIPreferences({ theme })}
-	/>
+	<ThemeSelector {uiState} />
 </CardGroup.Item>
 
 <CardGroup.Item alignment="center" standalone>
@@ -68,22 +76,17 @@
 	{#snippet actions()}
 		<Select
 			maxWidth={120}
-			value={globalDraftStore.draft.uiPreferences.defaultFileListMode ?? "tree"}
+			value={defaultFileListMode.current}
 			options={[
 				{ label: "List view", value: "list" },
 				{ label: "Tree view", value: "tree" },
 			]}
 			onselect={(value) => {
-				globalDraftStore.updateUIPreferences({
-					defaultFileListMode: value as "tree" | "list",
-				});
+				defaultFileListMode.set(value as "tree" | "list");
 			}}
 		>
 			{#snippet itemSnippet({ item, highlighted })}
-				<SelectItem
-					selected={item.value === globalDraftStore.draft.uiPreferences.defaultFileListMode}
-					{highlighted}
-				>
+				<SelectItem selected={item.value === defaultFileListMode.current} {highlighted}>
 					{item.label}
 				</SelectItem>
 			{/snippet}
@@ -101,11 +104,9 @@
 	{#snippet actions()}
 		<Toggle
 			id="pathFirst"
-			checked={globalDraftStore.draft.uiPreferences.pathFirst ?? false}
+			checked={pathFirst.current}
 			onclick={() => {
-				globalDraftStore.updateUIPreferences({
-					pathFirst: !globalDraftStore.draft.uiPreferences.pathFirst,
-				});
+				pathFirst.set(!pathFirst.current);
 			}}
 		/>
 	{/snippet}
@@ -122,17 +123,15 @@
 		{#snippet actions()}
 			<Toggle
 				id="allInOneDiff"
-				checked={globalDraftStore.draft.uiPreferences.allInOneDiff ?? false}
+				checked={allInOneDiff.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						allInOneDiff: !globalDraftStore.draft.uiPreferences.allInOneDiff,
-					});
+					allInOneDiff.set(!allInOneDiff.current);
 				}}
 			/>
 		{/snippet}
 	</CardGroup.Item>
 
-	{#if globalDraftStore.draft.uiPreferences.allInOneDiff}
+	{#if allInOneDiff.current}
 		<CardGroup.Item labelFor="highlightDiffs">
 			{#snippet title()}
 				Highlight active diff
@@ -143,11 +142,9 @@
 			{#snippet actions()}
 				<Toggle
 					id="highlightDiffs"
-					checked={globalDraftStore.draft.uiPreferences.highlightDiffs ?? true}
+					checked={highlightDiffs.current}
 					onclick={() => {
-						globalDraftStore.updateUIPreferences({
-							highlightDiffs: !globalDraftStore.draft.uiPreferences.highlightDiffs,
-						});
+						highlightDiffs.set(!highlightDiffs.current);
 					}}
 				/>
 			{/snippet}
@@ -186,17 +183,14 @@
 		{#snippet actions()}
 			<Select
 				maxWidth={200}
-				value={globalDraftStore.draft.uiPreferences.syntaxThemeLight ?? "github-light-default"}
+				value={syntaxThemeLight.current}
 				options={LIGHT_THEMES}
 				onselect={(value) => {
-					globalDraftStore.updateUIPreferences({ syntaxThemeLight: value });
+					syntaxThemeLight.set(value);
 				}}
 			>
 				{#snippet itemSnippet({ item, highlighted })}
-					<SelectItem
-						selected={item.value === globalDraftStore.draft.uiPreferences.syntaxThemeLight}
-						{highlighted}
-					>
+					<SelectItem selected={item.value === syntaxThemeLight.current} {highlighted}>
 						{item.label}
 					</SelectItem>
 				{/snippet}
@@ -214,17 +208,14 @@
 		{#snippet actions()}
 			<Select
 				maxWidth={200}
-				value={globalDraftStore.draft.uiPreferences.syntaxThemeDark ?? "github-dark-default"}
+				value={syntaxThemeDark.current}
 				options={DARK_THEMES}
 				onselect={(value) => {
-					globalDraftStore.updateUIPreferences({ syntaxThemeDark: value });
+					syntaxThemeDark.set(value);
 				}}
 			>
 				{#snippet itemSnippet({ item, highlighted })}
-					<SelectItem
-						selected={item.value === globalDraftStore.draft.uiPreferences.syntaxThemeDark}
-						{highlighted}
-					>
+					<SelectItem selected={item.value === syntaxThemeDark.current} {highlighted}>
 						{item.label}
 					</SelectItem>
 				{/snippet}
@@ -242,10 +233,10 @@
 
 		<Textbox
 			wide
-			value={globalDraftStore.draft.uiPreferences.diffFont ?? "JetBrains Mono, Menlo, monospace"}
+			value={diffFont.current}
 			required
 			onchange={(value: string) => {
-				globalDraftStore.updateUIPreferences({ diffFont: value });
+				diffFont.set(value);
 			}}
 		/>
 	</CardGroup.Item>
@@ -257,11 +248,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="allowDiffLigatures"
-				checked={globalDraftStore.draft.uiPreferences.diffLigatures ?? false}
+				checked={diffLigatures.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						diffLigatures: !globalDraftStore.draft.uiPreferences.diffLigatures,
-					});
+					diffLigatures.set(!diffLigatures.current);
 				}}
 			/>
 		{/snippet}
@@ -280,16 +269,14 @@
 				type="number"
 				width={100}
 				textAlign="center"
-				value={String(globalDraftStore.draft.uiPreferences.tabSize ?? 4)}
+				value={tabSize.current.toString()}
 				minVal={1}
 				maxVal={8}
 				showCountActions
 				onchange={(value: string) => {
-					globalDraftStore.updateUIPreferences({
-						tabSize: parseInt(value) || globalDraftStore.draft.uiPreferences.tabSize || 4,
-					});
+					tabSize.set(parseInt(value) || tabSize.current);
 				}}
-				placeholder={String(globalDraftStore.draft.uiPreferences.tabSize ?? 4)}
+				placeholder={tabSize.current.toString()}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -305,11 +292,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="wrapText"
-				checked={globalDraftStore.draft.uiPreferences.wrapText ?? false}
+				checked={wrapText.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						wrapText: !globalDraftStore.draft.uiPreferences.wrapText,
-					});
+					wrapText.set(!wrapText.current);
 				}}
 			/>
 		{/snippet}
@@ -325,11 +310,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="strongContrast"
-				checked={globalDraftStore.draft.uiPreferences.strongContrast ?? false}
+				checked={strongContrast.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						strongContrast: !globalDraftStore.draft.uiPreferences.strongContrast,
-					});
+					strongContrast.set(!strongContrast.current);
 				}}
 			/>
 		{/snippet}
@@ -347,11 +330,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="colorBlindFriendly"
-				checked={globalDraftStore.draft.uiPreferences.colorBlindFriendly ?? false}
+				checked={colorBlindFriendly.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						colorBlindFriendly: !globalDraftStore.draft.uiPreferences.colorBlindFriendly,
-					});
+					colorBlindFriendly.set(!colorBlindFriendly.current);
 				}}
 			/>
 		{/snippet}
@@ -368,11 +349,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="inlineUnifiedDiffs"
-				checked={globalDraftStore.draft.uiPreferences.inlineUnifiedDiffs ?? false}
+				checked={inlineUnifiedDiffs.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						inlineUnifiedDiffs: !globalDraftStore.draft.uiPreferences.inlineUnifiedDiffs,
-					});
+					inlineUnifiedDiffs.set(!inlineUnifiedDiffs.current);
 				}}
 			/>
 		{/snippet}
@@ -388,11 +367,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="svgAsImage"
-				checked={globalDraftStore.draft.uiPreferences.svgAsImage ?? false}
+				checked={svgAsImage.current}
 				onclick={() => {
-					globalDraftStore.updateUIPreferences({
-						svgAsImage: !globalDraftStore.draft.uiPreferences.svgAsImage,
-					});
+					svgAsImage.set(!svgAsImage.current);
 				}}
 			/>
 		{/snippet}
@@ -413,7 +390,7 @@
 					name="scrollBarVisibilityType"
 					value="scroll"
 					id="scrollbar-on-scroll"
-					checked={globalDraftStore.draft.uiPreferences.scrollbarVisibilityState === "scroll"}
+					checked={scrollbarVisibilityState.current === "scroll"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -430,7 +407,7 @@
 					name="scrollBarVisibilityType"
 					value="hover"
 					id="scrollbar-on-hover"
-					checked={globalDraftStore.draft.uiPreferences.scrollbarVisibilityState === "hover"}
+					checked={scrollbarVisibilityState.current === "hover"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -444,7 +421,7 @@
 					name="scrollBarVisibilityType"
 					value="always"
 					id="scrollbar-always"
-					checked={globalDraftStore.draft.uiPreferences.scrollbarVisibilityState === "always"}
+					checked={scrollbarVisibilityState.current === "always"}
 				/>
 			{/snippet}
 		</CardGroup.Item>

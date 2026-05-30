@@ -1171,6 +1171,9 @@ async fn handle_command(
             projects::set_project_active(&broadcaster, &extra, app_settings_sync, request.params)
                 .await
         }
+        "check_project_health" => {
+            projects::check_project_health(&extra, app_settings_sync, request.params).await
+        }
         // Async virtual branches commands (not yet migrated due to different pattern)
         "upstream_integration_statuses" => {
             let params = deserialize_json(request.params);

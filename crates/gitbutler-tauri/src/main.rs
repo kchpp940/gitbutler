@@ -425,6 +425,7 @@ fn main() -> anyhow::Result<()> {
                 projects::list_projects,
                 projects::server_capabilities,
                 projects::set_project_active,
+                projects::check_project_health,
                 projects::open_project_in_window,
                 zip::get_logs_archive_path,
                 zip::get_project_archive_path,

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { Icon } from "@gitbutler/ui";
-	import type { AppTheme } from "$lib/state/uiState.svelte";
+	import type { AppTheme, UiState } from "$lib/state/uiState.svelte";
 
 	interface Props {
-		currentTheme: AppTheme;
-		onThemeChange: (theme: AppTheme) => void;
+		uiState: UiState;
 	}
 
-	const { currentTheme, onThemeChange }: Props = $props();
+	const { uiState }: Props = $props();
+
+	const currentTheme = $derived(uiState.global.theme.current ?? "system");
 
 	const themes: { name: string; value: AppTheme; preview: string }[] = [
 		{
@@ -41,76 +42,94 @@
 				id="theme-{theme.value}"
 				value={theme.value}
 				checked={theme.value === currentTheme}
-				onchange={() => onThemeChange(theme.value)}
+				onchange={() => uiState.global.theme.set(theme.value)}
 			/>
 			<div class="theme-card__preview">
-				<i class="theme-card__icon text-success"><Icon name="tick-circle" size={16} /></i>
-				<img src={theme.preview} alt="" aria-hidden="true" />
+				<i class="theme-card__icon"
+					><Icon
+						name="tick-circle"
+						color={theme.value === "light" ? "var(--clr-pop-50)" : "var(--clr-pop-60)"}
+					/></i
+				>
+
+				<img src={theme.preview} alt={theme.name} />
 			</div>
-			<div class="theme-card__label">{theme.name}</div>
+
+			<span class="theme-card__label text-12 text-semibold">{theme.name}</span>
 		</label>
 	{/each}
 </fieldset>
 
-<style>
+<style lang="postcss">
 	.cards-group {
-		display: flex;
-		flex-wrap: wrap;
-		margin: 0;
-		padding: 0;
-		gap: 12px;
-		border: none;
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 16px;
 	}
 
 	.theme-card {
 		display: flex;
-		position: relative;
 		flex-direction: column;
-		gap: 10px;
+		align-items: center;
+		gap: 8px;
 		cursor: pointer;
 	}
 
-	.hidden-input {
-		position: absolute;
-		opacity: 0;
-		pointer-events: none;
+	.theme-card:hover {
+		& .theme-card__label {
+			background-color: var(--bg-2);
+		}
 	}
 
 	.theme-card__preview {
 		position: relative;
-		width: 140px;
-		height: 90px;
-		overflow: hidden;
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		transition: border-color 100ms ease;
-	}
-
-	.theme-card:hover .theme-card__preview {
-		border-color: var(--border-hover);
-	}
-
-	.theme-card.selected .theme-card__preview {
-		border-color: var(--accent);
-	}
-
-	.theme-card__icon {
-		z-index: 1;
-		position: absolute;
-		top: 6px;
-		right: 6px;
-	}
-
-	.theme-card__preview img {
-		display: block;
 		width: 100%;
-		height: 100%;
-		object-fit: cover;
+		height: auto;
+		overflow: hidden;
+		border: 1px solid var(--border-2);
+		border-radius: var(--radius-m);
+
+		& img {
+			width: 100%;
+			height: auto;
+			border-radius: var(--radius-m);
+		}
 	}
 
 	.theme-card__label {
-		font-weight: 500;
-		font-size: 12px;
+		padding: 6px;
+		border-radius: var(--radius-m);
 		text-align: center;
+	}
+
+	.theme-card__icon {
+		display: flex;
+		z-index: 1;
+		position: absolute;
+		right: 8px;
+		bottom: 8px;
+		opacity: 0;
+	}
+
+	.hidden-input {
+		z-index: -1;
+		position: absolute;
+		width: 0;
+		height: 0;
+	}
+
+	/* MODIFIER */
+
+	.theme-card.selected .theme-card__preview {
+		border-color: var(--fill-pop-bg);
+	}
+
+	.theme-card.selected .theme-card__label {
+		background-color: var(--chip-pop-bg);
+	}
+
+	.theme-card.selected .theme-card__icon {
+		transform: scale(1);
+		opacity: 1;
 	}
 </style>

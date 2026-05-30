@@ -5,13 +5,14 @@
 	import IconLink from "$components/shared/IconLink.svelte";
 	import cloneRepoSvg from "$lib/assets/welcome/clone-repo.svg?raw";
 	import newProjectSvg from "$lib/assets/welcome/new-local-project.svg?raw";
-	import { handleAddProjectOutcome } from "$lib/project/project";
+	import { PROJECT_LIFECYCLE_STORE } from "$lib/projectLifecycle";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
 	import { TestId } from "@gitbutler/ui";
 
 	const projectsService = inject(PROJECTS_SERVICE);
+	const lifecycleStore = inject(PROJECT_LIFECYCLE_STORE);
 	const posthog = inject(POSTHOG_WRAPPER);
 	const serverCapabilitiesQuery = $derived(projectsService.serverCapabilities());
 	const canAddProjects = $derived(serverCapabilitiesQuery.response?.canAddProjects ?? true);
@@ -23,12 +24,8 @@
 		newProjectLoading = true;
 		try {
 			const testDirectoryPath = directoryInputElement?.value;
-			const outcome = await projectsService.addProject(testDirectoryPath ?? "");
-
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProject);
-			if (outcome) {
-				handleAddProjectOutcome(outcome);
-			}
+			await lifecycleStore.addProjectAndNavigate(testDirectoryPath ?? "");
 		} catch (e: unknown) {
 			posthog.captureOnboarding(OnboardingEvent.AddLocalProjectFailed, e);
 		} finally {
@@ -37,7 +34,7 @@
 	}
 
 	async function onCloneProject() {
-		goto("/onboarding/clone");
+		lifecycleStore.navigateToClone();
 	}
 </script>
 
