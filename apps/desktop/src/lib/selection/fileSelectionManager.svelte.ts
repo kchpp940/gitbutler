@@ -8,7 +8,7 @@ import {
 	type SelectionId,
 	type SelectedFile,
 } from "$lib/selection/key";
-import { InjectionToken } from "@gitbutler/core/context";
+import { InjectionToken, type ProjectScopedService } from "@gitbutler/core/context";
 import { reactive } from "@gitbutler/shared/reactiveUtils.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { get, writable, type Writable } from "svelte/store";
@@ -48,7 +48,7 @@ export const FILE_SELECTION_MANAGER = new InjectionToken<FileSelectionManager>(
 /**
  * File selection mechanism based on strings id's.
  */
-export class FileSelectionManager {
+export class FileSelectionManager implements ProjectScopedService {
 	private selections: Map<
 		/** Return value of `selectionKey`. */
 		string,
@@ -79,6 +79,17 @@ export class FileSelectionManager {
 			entries: new SvelteSet<SelectedFileKey>(),
 			lastAdded: writable(),
 		});
+	}
+
+	async onProjectChange(_projectId: string | undefined): Promise<void> {
+		this.reset();
+	}
+
+	reset(): void {
+		for (const selection of this.selections.values()) {
+			selection.entries.clear();
+			selection.lastAdded.set(undefined);
+		}
 	}
 
 	getById(id: SelectionId) {

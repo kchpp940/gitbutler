@@ -17,7 +17,15 @@
 	import ShareIssueModal from "$components/shared/ShareIssueModal.svelte";
 	import ToastController from "$components/shared/ToastController.svelte";
 	import GlobalModalRouter from "$components/views/GlobalModalRouter.svelte";
-	import { initDependencies } from "$lib/bootstrap/deps";
+	import BootstrapDiagnostics from "$components/shared/BootstrapDiagnostics.svelte";
+	import {
+		bootstrap,
+		handleProjectChange,
+		BootstrapError,
+		ProjectSwitchError,
+		getDiagnostic,
+		type BootstrapResult,
+	} from "$lib/bootstrap/bootstrap";
 	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
 	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
@@ -43,7 +51,49 @@
 	// =============================================================================
 
 	const { backend } = untrack(() => data);
-	initDependencies(untrack(() => data));
+	let bootstrapCompleted = $state(false);
+	let bootstrapError = $state<Error | null>(null);
+	let bootstrapDiagnostic = $state<
+		import("@gitbutler/core/context").BootstrapDiagnosticResult | null
+	>(null);
+
+	(async () => {
+		try {
+			const result = await bootstrap(untrack(() => data));
+			if (dev) {
+				console.debug("[Bootstrap] Validation report:\n", result.validation.report);
+			}
+			bootstrapCompleted = true;
+		} catch (e) {
+			bootstrapError = e as Error;
+			if (e instanceof BootstrapError || e instanceof ProjectSwitchError) {
+				bootstrapDiagnostic = e.diagnostic;
+			} else {
+				try {
+					bootstrapDiagnostic = getDiagnostic();
+				} catch {
+					// fallback: no diagnostic available
+				}
+			}
+			console.error("[Bootstrap] Fatal error during bootstrap:", e);
+		}
+	})();
+
+	$effect(() => {
+		if (bootstrapCompleted && projectId) {
+			try {
+				handleProjectChange(projectId);
+			} catch (e) {
+				if (e instanceof ProjectSwitchError) {
+					bootstrapError = e;
+					bootstrapDiagnostic = e.diagnostic;
+					bootstrapCompleted = false;
+				} else {
+					console.error("[Bootstrap] Error during project change:", e);
+				}
+			}
+		}
+	});
 
 	const clientState = inject(CLIENT_STATE);
 	const posthog = inject(POSTHOG_WRAPPER);
@@ -185,7 +235,25 @@
 </svelte:head>
 
 <div class="app-root" role="application" oncontextmenu={(e) => !dev && e.preventDefault()}>
-	{@render children()}
+	{#if bootstrapError && bootstrapDiagnostic}
+		<div class="bootstrap-failure">
+			<div class="failure-header">
+				<h1>Application failed to start</h1>
+				<p>{bootstrapError.message}</p>
+			</div>
+			<BootstrapDiagnostics diagnostic={bootstrapDiagnostic} />
+		</div>
+	{:else if bootstrapError}
+		<div class="bootstrap-failure">
+			<div class="failure-header">
+				<h1>Application failed to start</h1>
+				<p>{bootstrapError.message}</p>
+			</div>
+			<pre class="error-stack">{bootstrapError.stack}</pre>
+		</div>
+	{:else}
+		{@render children()}
+	{/if}
 </div>
 <ShareIssueModal />
 <ToastController />
@@ -209,5 +277,39 @@
 		display: flex;
 		height: 100%;
 		cursor: default;
+	}
+
+	.bootstrap-failure {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		max-width: 900px;
+		margin: 40px auto;
+		padding: 24px;
+		overflow-y: auto;
+		gap: 16px;
+	}
+
+	.failure-header {
+		h1 {
+			margin: 0 0 8px;
+			color: var(--color-red-600, #dc2626);
+			font-weight: 700;
+			font-size: 20px;
+		}
+		p {
+			margin: 0;
+			color: var(--text-2);
+			font-size: 14px;
+		}
+	}
+
+	.error-stack {
+		padding: 12px;
+		overflow-x: auto;
+		border-radius: 8px;
+		background: var(--bg-2);
+		color: var(--text-2);
+		font-size: 11px;
 	}
 </style>

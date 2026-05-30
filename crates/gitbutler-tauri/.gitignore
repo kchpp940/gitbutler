@@ -1,7 +1,6 @@
 # Tauri generated output.
 gen/
 
-# Sidecar binaries injected at build time.
+# Extra binaries, figure out why they end up in this directory on build.
 gitbutler-git-*
 but-*
-.sidecar-integrity.json

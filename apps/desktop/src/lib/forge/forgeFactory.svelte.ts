@@ -95,6 +95,17 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 		return this._forge.prService?.unit.symbol ?? "#";
 	}
 
+	async onProjectChange(_projectId: string | undefined): Promise<void> {
+		this.reset();
+	}
+
+	reset(): void {
+		this._config = undefined;
+		this._forge = this.default;
+		this._determinedForgeType = "default";
+		this._githubError = undefined;
+	}
+
 	setConfig(config: ForgeConfig) {
 		if (deepCompare(config, this._config)) {
 			return;

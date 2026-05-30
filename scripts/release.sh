@@ -4,24 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [ -n "${BASH_SOURCE:-}" ]; then
-    SOURCE="${BASH_SOURCE[0]}"
-    while [ -h "$SOURCE" ]; do
-      DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-      SOURCE="$(readlink "$SOURCE")"
-      [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-    done
-    SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
-elif [ -n "${ZSH_VERSION:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${(%):-%x}")" && pwd)"
-else
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-fi
-
-PWD="$SCRIPT_DIR"
-
-source "$SCRIPT_DIR/../build-artifacts-lib.sh"
-spec_load
+PWD="$(dirname "$(readlink -f -- "$0")")"
 
 CHANNEL=""
 DO_SIGN="false"
@@ -158,19 +141,6 @@ if [ "$CHANNEL" != "release" ] && [ "$CHANNEL" != "nightly" ]; then
 	error "--channel must be either 'release' or 'nightly'"
 fi
 
-spec_init_from_channel "$CHANNEL"
-
-CARGO_TARGET_DIR=$(spec_cargo_target_dir)
-info "spec: CARGO_TARGET_DIR=$CARGO_TARGET_DIR (from spec channel=$CHANNEL)"
-export CARGO_TARGET_DIR
-
-spec_check_cargo_target_dir || error "Cargo target-dir inconsistent with spec - update .cargo/config.toml"
-
-info "validating artifacts against spec (channel=$CHANNEL profile=$PROFILE)"
-bash "$SCRIPT_DIR/validate-artifacts.sh" || error "artifact validation failed - missing or stale artifacts"
-
-spec_check_stale_cache || error "stale cache detected - clean and rebuild"
-
 if [ "$DO_SIGN" = "true" ]; then
 	if [ "$OS" = "macos" ]; then
 		[ -z "${APPLE_CERTIFICATE-}" ] && error "$APPLE_CERTIFICATE is not set"
@@ -245,38 +215,32 @@ cat "$TMP_DIR/tauri.conf.json"
 export VERSION
 export CHANNEL
 
-# Verify sidecar binaries before bundling - ensures they were built in this run
-info "verifying sidecar binary integrity"
-bash "$PWD/../crates/gitbutler-tauri/verify-sidecars.sh" "$TMP_DIR/tauri.conf.json"
-
 # Build the app with release config
 if [ -n "$TARGET" ]; then
+	# Export TARGET for cargo to use
 	export CARGO_BUILD_TARGET="$TARGET"
 
+	# Build with specified target
+	# Note: passing --target is necessary to let tauri find the binaries,
+	# it ignores CARGO_BUILD_TARGET and is more of a hack.
 	tauri build \
 		--verbose \
 		--features "$FEATURES" \
 		--config "$TMP_DIR/tauri.conf.json" \
 		--target "$TARGET"
 
-	BUNDLE_DIR_SPEC=$(spec_substitute "$(spec_get ".components.desktop.bundleOutput")")
-	BUNDLE_DIR=$(readlink -f "$PWD/../$BUNDLE_DIR_SPEC")
-	BUILD_DIR_SPEC=$(spec_substitute "$(spec_get ".paths.targetRelease")")
-	BUILD_DIR=$(readlink -f "$PWD/../$BUILD_DIR_SPEC")
+  BUNDLE_DIR=$(readlink -f "$PWD/../target/$TARGET/release/bundle")
+  BUILD_DIR=$(readlink -f "$PWD/../target/$TARGET/release")
 else
+	# Build with default target
 	tauri build \
 		--verbose \
 		--features "$FEATURES" \
 		--config "$TMP_DIR/tauri.conf.json"
 
-	BUNDLE_DIR_SPEC=$(spec_substitute "$(spec_get ".components.desktop.bundleOutput")")
-	BUNDLE_DIR=$(readlink -f "$PWD/../$BUNDLE_DIR_SPEC")
-	BUILD_DIR_SPEC=$(spec_substitute "$(spec_get ".paths.targetRelease")")
-	BUILD_DIR=$(readlink -f "$PWD/../$BUILD_DIR_SPEC")
+	BUNDLE_DIR=$(readlink -f "$PWD/../target/release/bundle")
+	BUILD_DIR=$(readlink -f "$PWD/../target/release")
 fi
-
-info "spec: BUNDLE_DIR=$BUNDLE_DIR (from $BUNDLE_DIR_SPEC)"
-info "spec: BUILD_DIR=$BUILD_DIR (from $BUILD_DIR_SPEC)"
 
 RELEASE_DIR="$DIST/$OS/$ARCH"
 mkdir -p "$RELEASE_DIR"
@@ -300,8 +264,7 @@ elif [ "$OS" = "linux" ]; then
 	APPIMAGE_UPDATER_SIG="$(find "$BUNDLE_DIR/appimage" -name \*.AppImage.tar.gz.sig)"
 	DEB="$(find "$BUNDLE_DIR/deb" -name \*.deb)"
 	RPM="$(find "$BUNDLE_DIR/rpm" -name \*.rpm)"
-	BUT_CLI_REL=$(spec_resolve_binary "but" "$PROFILE")
-	BUT_CLI="$(readlink -f "$PWD/../$BUT_CLI_REL")"
+	BUT_CLI="$(readlink -f "$BUILD_DIR/but")"
 
 	"$PWD/add-but-symlink-to-deb.sh" "$DEB"
 

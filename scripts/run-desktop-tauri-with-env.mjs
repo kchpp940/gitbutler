@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 
+/** @type {string | undefined} */
 const mode = process.argv[2];
+/** @type {string | undefined} */
 const command = process.argv[3];
 const commandArgs = process.argv.slice(4);
 
@@ -20,6 +22,7 @@ const envFiles = [
 	resolve(desktopDir, `.env.${mode}.local`),
 ];
 
+/** @type {NodeJS.ProcessEnv} */
 const mergedEnv = { ...process.env };
 
 for (const filePath of envFiles) {
@@ -30,63 +33,6 @@ for (const filePath of envFiles) {
 			mergedEnv[key] = value;
 		}
 	}
-}
-
-try {
-	const specPath = findSpecFile(repoRoot);
-	const spec = JSON.parse(readFileSync(specPath, "utf-8"));
-
-	const channelMap = {
-		development: "development",
-		dev: "dev",
-		nightly: "nightly",
-		production: "production",
-		release: "release",
-		test: "test",
-	};
-	const channel = channelMap[mode] || "development";
-	const channelConfig = spec.channels[channel] || spec.channels.dev;
-	const profile = channelConfig?.profile || "debug";
-	const cargoTargetDir = channelConfig?.cargoTargetDir || "target/tauri";
-
-	mergedEnv.CHANNEL = channel;
-	mergedEnv.PROFILE = profile;
-	mergedEnv.CARGO_TARGET_DIR = resolve(repoRoot, cargoTargetDir);
-
-	console.log(`[dev-env] channel=${channel} profile=${profile} CARGO_TARGET_DIR=${mergedEnv.CARGO_TARGET_DIR}`);
-
-	const feManifestPath = resolve(
-		repoRoot,
-		spec.components.frontend.outputDir,
-		spec.components.frontend.buildManifest,
-	);
-	if (existsSync(feManifestPath)) {
-		const feManifest = JSON.parse(readFileSync(feManifestPath, "utf-8"));
-		if (feManifest.channel && feManifest.channel !== channel) {
-			console.warn(
-				`[dev-env] WARNING: frontend manifest channel=${feManifest.channel} != current channel=${channel}`,
-			);
-			console.warn(`[dev-env] This may indicate dev/prod cross-contamination`);
-			console.warn(`[dev-env] Consider running: pnpm clean:frontend`);
-		}
-	}
-
-	const rustManifestPath = resolve(
-		repoRoot,
-		spec.components.rust.manifestPath.replace("target/", `${cargoTargetDir}/`).replace(`target/`, ""),
-	);
-	const rustManifestAlt = resolve(repoRoot, spec.components.rust.manifestPath);
-	if (existsSync(rustManifestAlt)) {
-		const rustManifest = JSON.parse(readFileSync(rustManifestAlt, "utf-8"));
-		if (rustManifest.channel && rustManifest.channel !== channel) {
-			console.warn(
-				`[dev-env] WARNING: Rust binary manifest channel=${rustManifest.channel} != current channel=${channel}`,
-			);
-			console.warn(`[dev-env] Consider running: pnpm clean:rust && cargo build -p gitbutler-git -p but`);
-		}
-	}
-} catch (err) {
-	console.warn(`[dev-env] Could not validate manifests: ${err.message}`);
 }
 
 const child = spawn(command, commandArgs, {
@@ -109,17 +55,12 @@ child.on("error", (error) => {
 	process.exit(1);
 });
 
-function findSpecFile(startDir) {
-	let current = startDir;
-	while (current !== "/" && current !== "") {
-		const candidate = resolve(current, "build-artifacts.spec.json");
-		if (existsSync(candidate)) return candidate;
-		current = dirname(current);
-	}
-	throw new Error("build-artifacts.spec.json not found");
-}
-
+/**
+ * @param {string} source
+ * @returns {Record<string, string>}
+ */
 function parseDotEnv(source) {
+	/** @type {Record<string, string>} */
 	const vars = {};
 
 	for (const rawLine of source.split(/\r?\n/)) {
@@ -136,6 +77,10 @@ function parseDotEnv(source) {
 	return vars;
 }
 
+/**
+ * @param {string} rawValue
+ * @returns {string}
+ */
 function normalizeValue(rawValue) {
 	const trimmed = rawValue.trim();
 

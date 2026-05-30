@@ -13,6 +13,7 @@ import { buildWorktreeEndpoints } from "$lib/worktree/worktreeEndpoints";
 import { buildCreateApi, coreModule } from "@reduxjs/toolkit/query";
 import type { HookContext } from "$lib/state/context";
 import type { EndpointBuilder } from "@reduxjs/toolkit/query";
+import { trackRtkEndpointInjections, type RtkApiType } from "@gitbutler/core/context";
 
 export type BackendEndpointBuilder = EndpointBuilder<TauriBaseQueryFn, ReduxTag, "backend">;
 
@@ -21,7 +22,7 @@ export type BackendEndpointBuilder = EndpointBuilder<TauriBaseQueryFn, ReduxTag,
  * giving full TypeScript typing on the returned BackendApi.
  */
 export function createBackendApi(ctx: HookContext) {
-	return buildCreateApi(
+	const api = buildCreateApi(
 		coreModule(),
 		butlerModule(ctx),
 	)({
@@ -42,6 +43,8 @@ export function createBackendApi(ctx: HookContext) {
 			...buildUserEndpoints(build),
 		}),
 	});
+
+	return trackRtkEndpointInjections(api, "backend");
 }
 
 export type BackendApi = ReturnType<typeof createBackendApi>;

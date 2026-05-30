@@ -23,7 +23,6 @@ test = false
 
 [build-dependencies]
 tauri-build = { version = "2.6.1", features = [] }
-serde_json.workspace = true
 
 [dependencies]
 but = { workspace = true, optional = true }

@@ -38,6 +38,9 @@
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { debounce } from "$lib/utils/debounce";
 	import { WORKTREE_SERVICE } from "$lib/worktree/worktreeService.svelte";
+	import { handleProjectChange, ProjectSwitchError, getDiagnostic } from "$lib/bootstrap/bootstrap";
+	import BootstrapDiagnostics from "$components/shared/BootstrapDiagnostics.svelte";
+	import type { BootstrapDiagnosticResult } from "@gitbutler/core/context";
 	import { inject } from "@gitbutler/core/context";
 	import { reactive } from "@gitbutler/shared/reactiveUtils.svelte";
 	import { mergeUnlisten } from "@gitbutler/ui/utils/mergeUnlisten";
@@ -398,10 +401,23 @@
 		setActiveProjectOrRedirect(projectId);
 	});
 
-	// Clear backend API state when project changes
+	// Clear backend API state and reset project-scoped services when project changes
+	let projectSwitchDiagnostic = $state<BootstrapDiagnosticResult | null>(null);
+
 	$effect(() => {
 		if (projectId) {
 			clientState.backendApi.util.resetApiState();
+			try {
+				handleProjectChange(projectId);
+				projectSwitchDiagnostic = null;
+			} catch (e) {
+				if (e instanceof ProjectSwitchError) {
+					projectSwitchDiagnostic = e.diagnostic;
+					console.error("[ProjectLayout] Stale service/cache detected:", e.message);
+				} else {
+					console.error("[ProjectLayout] Error handling project change:", e);
+				}
+			}
 		}
 	});
 
@@ -480,10 +496,71 @@
 
 <AnalyticsMonitor {projectId} />
 
+{#if projectSwitchDiagnostic}
+	<div class="stale-overlay">
+		<div class="stale-content">
+			<h2>Project Switch Issue Detected</h2>
+			<p>
+				Some services or caches are still bound to a previous project. This may cause inconsistent
+				behavior.
+			</p>
+			<BootstrapDiagnostics diagnostic={projectSwitchDiagnostic} />
+			<button onclick={() => (projectSwitchDiagnostic = null)}>Dismiss</button>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.view-wrap {
 		display: flex;
 		position: relative;
 		width: 100%;
+	}
+
+	.stale-overlay {
+		display: flex;
+		z-index: 9999;
+		position: fixed;
+		align-items: center;
+		justify-content: center;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.5);
+	}
+
+	.stale-content {
+		display: flex;
+		flex-direction: column;
+		width: 90%;
+		max-width: 900px;
+		max-height: 80vh;
+		padding: 24px;
+		overflow-y: auto;
+		gap: 12px;
+		border-radius: 12px;
+		background: var(--bg-1);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+
+		h2 {
+			margin: 0;
+			color: var(--color-orange-600, #ea580c);
+			font-size: 18px;
+		}
+
+		p {
+			margin: 0;
+			color: var(--text-2);
+			font-size: 13px;
+		}
+
+		button {
+			align-self: flex-end;
+			padding: 6px 16px;
+			border: 1px solid var(--border-2);
+			border-radius: 6px;
+			background: var(--bg-2);
+			color: var(--text-1);
+			font-size: 13px;
+			cursor: pointer;
+		}
 	}
 </style>

@@ -2,52 +2,10 @@ import { sentrySvelteKit } from "@sentry/sveltekit";
 import { sveltekit } from "@sveltejs/kit/vite";
 import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig, type Plugin } from "vitest/config";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import {
-	getViteCacheDir,
-	getFrontendOutputDir,
-	getCargoTargetDir,
-	loadSpec,
-	findSpecFile,
-} from "../../build-artifacts-utils";
-
-const spec = loadSpec();
-const CHANNEL = process.env.CHANNEL || process.env.MODE || "development";
-
-function buildManifestPlugin(): Plugin {
-	return {
-		name: "gitbutler-build-manifest",
-		writeBundle(options) {
-			const outDir = options.dir || getFrontendOutputDir(spec);
-			const specFilePath = findSpecFile();
-			const projectRoot = dirname(specFilePath);
-
-			const manifest = {
-				version: "3.0.0",
-				channel: CHANNEL,
-				mode: process.env.MODE || "development",
-				profile: spec.channels[CHANNEL]?.profile || "debug",
-				cargoTargetDir: getCargoTargetDir(CHANNEL, spec),
-				viteCacheDir: getViteCacheDir(CHANNEL, spec),
-				timestamp: new Date().toISOString(),
-				specVersion: spec.version,
-			};
-
-			const manifestDir = resolve(projectRoot, outDir);
-			mkdirSync(manifestDir, { recursive: true });
-			const manifestPath = resolve(manifestDir, spec.components.frontend.buildManifest);
-			writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-			console.log(`[build-manifest] wrote ${manifestPath}`);
-			console.log(`[build-manifest] channel=${manifest.channel} profile=${manifest.profile} cargoTargetDir=${manifest.cargoTargetDir}`);
-		},
-	};
-}
 
 export default defineConfig({
 	plugins: [
 		process.env.VITE_DEBOUNCE_RELOAD ? debounceReload() : undefined,
-		buildManifestPlugin(),
 		sentrySvelteKit({
 			adapter: "other",
 			autoInstrument: {
@@ -95,9 +53,7 @@ export default defineConfig({
 	// to make use of `TAURI_ENV_DEBUG` and other env variables
 	// https://tauri.studio/v1/api/config#buildconfig.beforedevcommand
 	envPrefix: ["VITE_", "TAURI_"],
-	cacheDir: `../../${getViteCacheDir(CHANNEL || undefined, spec)}`,
 	build: {
-		outDir: getFrontendOutputDir(spec),
 		rollupOptions: {
 			output: {
 				manualChunks: {},
