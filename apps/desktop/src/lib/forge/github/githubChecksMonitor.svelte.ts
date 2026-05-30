@@ -1,9 +1,7 @@
-import { injectOptional } from "@gitbutler/core/context";
-import { FORGE_SCOPE_SERVICE, type ScopedSubscription } from "$lib/forge/forgeScopeService.svelte";
 import { ghQuery } from "$lib/forge/github/ghQuery";
 import { type ChecksResult } from "$lib/forge/github/types";
-import { eventualConsistencyCheck, getPollingInterval } from "$lib/forge/shared/progressivePolling";
-import { providesScopedItem, ReduxTag } from "$lib/state/tags";
+import { eventualConsistencyCheck } from "$lib/forge/shared/progressivePolling";
+import { providesItem, ReduxTag } from "$lib/state/tags";
 import type { ChecksService } from "$lib/forge/interface/forgeChecksMonitor";
 import type { ChecksStatus } from "$lib/forge/interface/types";
 import type { QueryOptions } from "$lib/state/butlerModule";
@@ -12,58 +10,18 @@ import type { GitHubApi } from "$lib/state/clientState.svelte";
 export class GitHubChecksMonitor implements ChecksService {
 	private api: ReturnType<typeof injectEndpoints>;
 
-	constructor(
-		gitHubApi: GitHubApi,
-		private readonly scopeId?: string,
-	) {
-		this.api = injectEndpoints(gitHubApi, scopeId);
+	constructor(gitHubApi: GitHubApi) {
+		this.api = injectEndpoints(gitHubApi);
 	}
 
-	get(branch: string) {
-		const forgeScopeService = injectOptional(FORGE_SCOPE_SERVICE, undefined);
-
-		const pollingInterval = getPollingInterval(0, false) || 30000;
-		const endpoint = this.api.endpoints.listChecks;
-		const queryArg = { ref: branch };
-
-		const query = endpoint.subscribe(queryArg, {
-			subscriptionOptions: { pollingInterval },
-		});
-
-		const stateQuery = endpoint.useQueryState(queryArg, {
-			transform: (result) => parseChecks(result),
-		});
-
-		const subscription: ScopedSubscription = {
-			scopeId: this.scopeId ?? "",
-			key: `checks:${branch}`,
-			stop: () => query.unsubscribe(),
-			cancel: () => {
-				if ("abort" in query && typeof query.abort === "function") {
-					query.abort();
-				}
+	get(branchName: string, options?: QueryOptions) {
+		return this.api.endpoints.listChecks.useQuery(
+			{ ref: branchName },
+			{
+				transform: (result) => parseChecks(result),
+				...options,
 			},
-		};
-
-		if (forgeScopeService) {
-			forgeScopeService.registerScopedSubscription(subscription);
-		}
-
-		async function refetch() {
-			await query.refetch();
-		}
-
-		return {
-			get result() {
-				return {
-					...stateQuery.result,
-					refetch,
-				};
-			},
-			get response() {
-				return stateQuery.response;
-			},
-		};
+		);
 	}
 
 	async fetch(branchName: string, options?: QueryOptions) {
@@ -114,7 +72,7 @@ function parseChecks(data: ChecksResult): ChecksStatus | null {
 	};
 }
 
-function injectEndpoints(api: GitHubApi, scopeId?: string) {
+function injectEndpoints(api: GitHubApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			listChecks: build.query<ChecksResult, { ref: string }>({
@@ -133,14 +91,12 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 
 					return eventualConsistencyCheck(listChecksForRef, (response) => {
 						if (response.error) {
-							return true;
+							return true; // Stop if there's an error
 						}
 						return hasChecks(response.data);
 					});
 				},
-				providesTags: (_result, _error, args) => [
-					...providesScopedItem(ReduxTag.Checks, scopeId ?? "", args.ref),
-				],
+				providesTags: (_result, _error, args) => [...providesItem(ReduxTag.Checks, args.ref)],
 			}),
 		}),
 	});

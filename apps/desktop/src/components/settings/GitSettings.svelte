@@ -1,16 +1,9 @@
 <script lang="ts">
-	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
-	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Link, Select, SelectItem, Toggle } from "@gitbutler/ui";
-	import { onMount } from "svelte";
 
-	const gitConfig = inject(GIT_CONFIG_SERVICE);
-	const settingsService = inject(SETTINGS_SERVICE);
-	const settings = settingsService.appSettings;
-
-	let annotateCommits = $state(true);
-	let fetchFrequency = $state<number>(-1);
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
 
 	const fetchFrequencyOptions = [
 		{ label: "1 minute", value: "1", minutes: 1 },
@@ -20,32 +13,24 @@
 		{ label: "None", value: "none", minutes: -1 },
 	] as const;
 
-	function toggleCommitterSigning() {
-		annotateCommits = !annotateCommits;
-		gitConfig.set("gitbutler.gitbutlerCommitter", annotateCommits ? "1" : "0");
-	}
-
-	async function updateFetchFrequency(value: string) {
-		const option = fetchFrequencyOptions.find((opt) => opt.value === value);
-		if (option) {
-			fetchFrequency = option.minutes;
-			await settingsService.updateFetch({ autoFetchIntervalMinutes: option.minutes });
-		}
-	}
-
 	const selectedValue = $derived(
-		fetchFrequencyOptions.find((opt) => opt.minutes === fetchFrequency)?.value ?? "none",
+		fetchFrequencyOptions.find(
+			(opt) => opt.minutes === globalDraftStore.draft.git.autoFetchIntervalMinutes,
+		)?.value ?? "none",
 	);
 
-	onMount(async () => {
-		annotateCommits = (await gitConfig.get("gitbutler.gitbutlerCommitter")) === "1";
-	});
+	function toggleCommitterSigning() {
+		globalDraftStore.updateGitSettings({
+			gitbutlerCommitter: !globalDraftStore.draft.git.gitbutlerCommitter,
+		});
+	}
 
-	$effect(() => {
-		if ($settings?.fetch) {
-			fetchFrequency = $settings.fetch.autoFetchIntervalMinutes;
+	function updateFetchFrequency(value: string) {
+		const option = fetchFrequencyOptions.find((opt) => opt.value === value);
+		if (option) {
+			globalDraftStore.updateGitSettings({ autoFetchIntervalMinutes: option.minutes });
 		}
-	});
+	}
 </script>
 
 <CardGroup.Item standalone labelFor="committerSigning">
@@ -62,7 +47,11 @@
 		</Link>
 	{/snippet}
 	{#snippet actions()}
-		<Toggle id="committerSigning" checked={annotateCommits} onclick={toggleCommitterSigning} />
+		<Toggle
+			id="committerSigning"
+			checked={globalDraftStore.draft.git.gitbutlerCommitter}
+			onclick={toggleCommitterSigning}
+		/>
 	{/snippet}
 </CardGroup.Item>
 

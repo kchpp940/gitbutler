@@ -8,14 +8,10 @@
 	import { showError } from "$lib/error/showError";
 	import { showToast } from "$lib/notifications/toasts";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { TERMINAL_SERVICE } from "$lib/settings/terminalService";
-	import {
-		UI_STATE,
-		type CodeEditorSettings,
-		type TerminalSettings,
-	} from "$lib/state/uiState.svelte";
-	import { UPDATER_SERVICE } from "$lib/updater/updater";
+	import type { CodeEditorSettings, TerminalSettings } from "$lib/state/uiState.svelte";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
@@ -34,11 +30,10 @@
 	import type { User } from "$lib/user/user";
 
 	const userService = inject(USER_SERVICE);
-	const settingsService = inject(SETTINGS_SERVICE);
 	const projectsService = inject(PROJECTS_SERVICE);
-
-	const updaterService = inject(UPDATER_SERVICE);
-	const disableAutoChecks = updaterService.disableAutoChecks;
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
+	const settingsService = inject(SETTINGS_SERVICE);
+	const appSettings = settingsService.appSettings;
 
 	const cliManager = inject(CLI_MANAGER);
 	const [instalCLI, installingCLI] = cliManager.install;
@@ -48,20 +43,12 @@
 
 	const terminalService = inject(TERMINAL_SERVICE);
 
-	const appSettings = settingsService.appSettings;
-
-	let saving = $state(false);
-	let newName = $state("");
 	let isDeleting = $state(false);
 	let loaded = $state(false);
 
 	let userPicture = $state(userService.user?.picture);
 
 	let deleteConfirmationModal: ReturnType<typeof Modal> | undefined = $state();
-
-	const uiState = inject(UI_STATE);
-	const defaultCodeEditor = uiState.global.defaultCodeEditor;
-	const defaultTerminal = uiState.global.defaultTerminal;
 
 	const editorOptions: CodeEditorSettings[] = [
 		{ schemeIdentifer: "vscodium", displayName: "VSCodium" },
@@ -111,36 +98,20 @@
 				userPicture = userData.picture;
 				userService.setUser(userData);
 			});
-			newName = userService.user?.name || "";
+			globalDraftStore.updateUserProfile({
+				name: userService.user?.name,
+			});
 		}
 	});
 
 	let selectedPictureFile: File | undefined = $state();
 
-	async function onSubmit(e: SubmitEvent) {
-		if (!userService.user) return;
-		saving = true;
-
-		e.preventDefault();
-
-		try {
-			const updatedUser = await userService.updateUser({
-				name: newName,
-				picture: selectedPictureFile,
-			});
-			userService.setUser(updatedUser);
-			chipToasts.success("Profile updated");
-			selectedPictureFile = undefined;
-		} catch (err: any) {
-			console.error(err);
-			showError("Failed to update user", err);
-		}
-		saving = false;
-	}
-
 	function onPictureChange(file: File) {
 		selectedPictureFile = file;
 		userPicture = URL.createObjectURL(file);
+		globalDraftStore.updateUserProfile({
+			picture: selectedPictureFile,
+		});
 	}
 
 	async function onDeleteClicked() {
@@ -165,7 +136,7 @@
 
 {#if userService.user}
 	<CardGroup>
-		<form onsubmit={onSubmit} class="profile-form">
+		<div class="profile-form">
 			<ProfilePictureUpload
 				bind:picture={userPicture}
 				onFileSelect={onPictureChange}
@@ -174,13 +145,18 @@
 
 			<div id="contact-info" class="contact-info">
 				<div class="contact-info__fields">
-					<Textbox label="Full name" bind:value={newName} required />
+					<Textbox
+						label="Full name"
+						value={globalDraftStore.draft.userProfile.name}
+						required
+						onchange={(value: string) => {
+							globalDraftStore.updateUserProfile({ name: value });
+						}}
+					/>
 					<Textbox label="Email" value={userService.user?.email} readonly />
 				</div>
-
-				<Button type="submit" style="pop" loading={saving}>Update profile</Button>
 			</div>
-		</form>
+		</div>
 	</CardGroup>
 
 	<CardGroup>
@@ -215,18 +191,19 @@
 		{/snippet}
 		{#snippet actions()}
 			<Select
-				value={defaultCodeEditor.current.schemeIdentifer}
+				value={globalDraftStore.draft.uiPreferences.defaultCodeEditor?.schemeIdentifer}
 				options={editorOptionsForSelect}
 				onselect={(value) => {
 					const selected = editorOptions.find((option) => option.schemeIdentifer === value);
 					if (selected) {
-						defaultCodeEditor.set(selected);
+						globalDraftStore.updateUIPreferences({ defaultCodeEditor: selected });
 					}
 				}}
 			>
 				{#snippet itemSnippet({ item, highlighted })}
 					<SelectItem
-						selected={item.value === defaultCodeEditor.current.schemeIdentifer}
+						selected={item.value ===
+							globalDraftStore.draft.uiPreferences.defaultCodeEditor?.schemeIdentifer}
 						{highlighted}
 					>
 						{item.label}
@@ -242,17 +219,21 @@
 			{/snippet}
 			{#snippet actions()}
 				<Select
-					value={defaultTerminal.current.identifier}
+					value={globalDraftStore.draft.uiPreferences.defaultTerminal?.identifier}
 					options={terminalOptionsForSelect}
 					onselect={(value) => {
 						const selected = terminalOptions.find((option) => option.identifier === value);
 						if (selected) {
-							defaultTerminal.set(selected);
+							globalDraftStore.updateUIPreferences({ defaultTerminal: selected });
 						}
 					}}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
-						<SelectItem selected={item.value === defaultTerminal.current.identifier} {highlighted}>
+						<SelectItem
+							selected={item.value ===
+								globalDraftStore.draft.uiPreferences.defaultTerminal?.identifier}
+							{highlighted}
+						>
 							{item.label}
 						</SelectItem>
 					{/snippet}
@@ -275,8 +256,12 @@
 		{#snippet actions()}
 			<Toggle
 				id="disable-auto-checks"
-				checked={!$disableAutoChecks}
-				onclick={() => ($disableAutoChecks = !$disableAutoChecks)}
+				checked={!globalDraftStore.draft.uiPreferences.disableAutoChecks}
+				onclick={() => {
+					globalDraftStore.updateUIPreferences({
+						disableAutoChecks: !globalDraftStore.draft.uiPreferences.disableAutoChecks,
+					});
+				}}
 			/>
 		{/snippet}
 	</CardGroup.Item>

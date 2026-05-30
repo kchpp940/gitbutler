@@ -25,9 +25,11 @@
 		onSelectPage: (pageId: PageId) => void;
 		content: Snippet<[{ currentPage: Page | undefined }]>;
 		footer?: Snippet;
+		actionBar?: Snippet;
 	};
 
-	const { title, pages, selectedId, isAdmin, onSelectPage, content, footer }: Props = $props();
+	const { title, pages, selectedId, isAdmin, onSelectPage, content, footer, actionBar }: Props =
+		$props();
 
 	let currentSelectedId = $derived(selectedId || pages[0]?.id || "");
 	const currentPage = $derived(pages.find((p) => p.id === currentSelectedId));
@@ -80,6 +82,11 @@
 				{@render content({ currentPage })}
 			</div>
 		</AppScrollableContainer>
+		{#if actionBar}
+			<div class="page-view__action-bar">
+				{@render actionBar()}
+			</div>
+		{/if}
 	</section>
 </div>
 
@@ -196,7 +203,20 @@
 		width: 100%;
 		max-width: 640px;
 		margin: 0 auto;
-		padding: 24px 32px 32px;
+		padding: 24px 32px 80px;
 		gap: 16px;
+	}
+
+	.page-view__action-bar {
+		display: flex;
+		position: sticky;
+		bottom: 0;
+		align-items: center;
+		justify-content: flex-end;
+		padding: 12px 24px;
+		gap: 12px;
+		border-top: 1px solid var(--border-2);
+		backdrop-filter: blur(8px);
+		background-color: var(--bg-2);
 	}
 </style>

@@ -1,20 +1,10 @@
 <script lang="ts">
-	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
-	import { projectRunCommitHooks } from "$lib/config/config";
-	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
-	import { inject } from "@gitbutler/core/context";
+	import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
 	import { CardGroup, Toggle } from "@gitbutler/ui";
-	import type { Project } from "$lib/project/project";
 
 	const { projectId }: { projectId: string } = $props();
-	const runCommitHooks = $derived(projectRunCommitHooks(projectId));
-	const projectsService = inject(PROJECTS_SERVICE);
-	const projectQuery = $derived(projectsService.getProject(projectId));
-
-	async function onHuskyHooksEnabledClick(project: Project, value: boolean) {
-		await projectsService.updateProject({ ...project, husky_hooks_enabled: value });
-	}
+	const projectDraftStore = PROJECT_DRAFT_STORE;
 </script>
 
 <SettingsSection>
@@ -27,33 +17,33 @@
 				Enable running git hooks (pre-push, pre/post-commit, commit-msg) during GitButler actions.
 			{/snippet}
 			{#snippet actions()}
-				<Toggle id="runHooks" bind:checked={$runCommitHooks} />
+				<Toggle
+					id="runHooks"
+					checked={projectDraftStore.draft.runCommitHooks ?? false}
+					onchange={(checked) => projectDraftStore.updateDraft(projectId, { runCommitHooks: checked })}
+				/>
 			{/snippet}
 		</CardGroup.Item>
 	</CardGroup>
 
-	<ReduxResult {projectId} result={projectQuery.result}>
-		{#snippet children(project)}
-			<CardGroup>
-				<CardGroup.Item labelFor="huskyHooks">
-					{#snippet title()}
-						Enable Husky hooks
-					{/snippet}
-					{#snippet caption()}
-						⚠️ Only enable this for repositories you trust.
-						<br />
-						Allow GitButler to execute scripts from `.husky` (which can come from the repository). Hooks
-						in `.git/hooks` are unaffected.
-					{/snippet}
-					{#snippet actions()}
-						<Toggle
-							id="huskyHooks"
-							checked={project.husky_hooks_enabled}
-							onchange={(checked) => onHuskyHooksEnabledClick(project, checked)}
-						/>
-					{/snippet}
-				</CardGroup.Item>
-			</CardGroup>
-		{/snippet}
-	</ReduxResult>
+	<CardGroup>
+		<CardGroup.Item labelFor="huskyHooks">
+			{#snippet title()}
+				Enable Husky hooks
+			{/snippet}
+			{#snippet caption()}
+				⚠️ Only enable this for repositories you trust.
+				<br />
+				Allow GitButler to execute scripts from `.husky` (which can come from the repository). Hooks
+				in `.git/hooks` are unaffected.
+			{/snippet}
+			{#snippet actions()}
+				<Toggle
+					id="huskyHooks"
+					checked={projectDraftStore.draft.huskyHooksEnabled ?? false}
+					onchange={(checked) => projectDraftStore.updateDraft(projectId, { huskyHooksEnabled: checked })}
+				/>
+			{/snippet}
+		</CardGroup.Item>
+	</CardGroup>
 </SettingsSection>

@@ -12,11 +12,14 @@
 	import TelemetrySettings from "$components/settings/TelemetrySettings.svelte";
 	import { URL_SERVICE } from "$lib/backend/url";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
+	import { SETTINGS_ORCHESTRATOR } from "$lib/settings/settingsOrchestrator";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { generalSettingsPages } from "$lib/settings/generalSettingsPages";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
-	import { Icon } from "@gitbutler/ui";
+	import { Button, Icon, InfoMessage } from "@gitbutler/ui";
 	import type { GeneralSettingsModalState, GeneralSettingsPageId } from "$lib/state/uiState.svelte";
+	import { onMount } from "svelte";
 
 	type Props = {
 		data: GeneralSettingsModalState;
@@ -29,11 +32,25 @@
 	const settingsStore = settingsService.appSettings;
 	const ircEnabled = $derived($settingsStore?.featureFlags.irc ?? false);
 	const urlService = inject(URL_SERVICE);
+	const settingsOrchestrator = inject(SETTINGS_ORCHESTRATOR);
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
 
 	let currentSelectedId = $derived(data.selectedId || generalSettingsPages[0]!.id);
 
 	function selectPage(pageId: GeneralSettingsPageId) {
 		currentSelectedId = pageId;
+	}
+
+	onMount(async () => {
+		await settingsOrchestrator.loadGlobalSettings();
+	});
+
+	async function onSave() {
+		await settingsOrchestrator.saveGlobalSettings();
+	}
+
+	function onCancel() {
+		settingsOrchestrator.cancelGlobalSettings();
 	}
 </script>
 
@@ -72,6 +89,38 @@
 		{:else}
 			Settings page {currentSelectedId} not Found.
 		{/if}
+	{/snippet}
+
+	{#snippet actionBar()}
+		{#if settingsOrchestrator.hasError}
+			<InfoMessage
+				style="danger"
+				class="error-banner"
+				tertiaryLabel="Dismiss"
+				tertiaryAction={() => settingsOrchestrator.clearError()}
+			>
+				{#snippet title()}
+					{settingsOrchestrator.currentError?.message ?? "Failed to save settings"}
+				{/snippet}
+			</InfoMessage>
+		{/if}
+		<div class="action-buttons">
+			<Button
+				kind="ghost"
+				disabled={!globalDraftStore.isDirty || settingsOrchestrator.isSaving}
+				onclick={onCancel}
+			>
+				Cancel
+			</Button>
+			<Button
+				style="pop"
+				loading={settingsOrchestrator.isSaving}
+				disabled={!globalDraftStore.isDirty || settingsOrchestrator.isSaving}
+				onclick={onSave}
+			>
+				Save changes
+			</Button>
+		</div>
 	{/snippet}
 
 	{#snippet footer()}
@@ -125,5 +174,20 @@
 	.open-link-icon {
 		transform: translateY(-2px) translateX(-4px);
 		color: var(--text-3);
+	}
+
+	:global(.page-view__action-bar) {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	:global(.page-view__action-bar .error-banner) {
+		margin-bottom: 8px;
+	}
+
+	:global(.page-view__action-bar .action-buttons) {
+		display: flex;
+		justify-content: flex-end;
+		gap: 12px;
 	}
 </style>

@@ -24,7 +24,7 @@
 
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const prService = $derived(forge.current.prService);
-	const prQuery = $derived(prService?.get(prNumber));
+	const prQuery = $derived(prService?.get(prNumber, { forceRefetch: true }));
 	const prUnit = $derived(prService?.unit);
 
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);

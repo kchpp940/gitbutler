@@ -3,10 +3,10 @@
 	import AiCredentialCheck from "$components/settings/AiCredentialCheck.svelte";
 	import AuthorizationBanner from "$components/settings/AuthorizationBanner.svelte";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
-	import { AISecretHandle, AI_SERVICE, GitAIConfigKey, KeyOption } from "$lib/ai/service";
-	import { OpenAIModelName, AnthropicModelName, ModelKind } from "$lib/ai/types";
-	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
-	import { SECRET_SERVICE } from "$lib/secrets/secretsService";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
+	import { KeyOption } from "$lib/ai/service";
+	import { ModelKind } from "$lib/ai/types";
+	import type { OpenAIModelName, AnthropicModelName } from "$lib/ai/types";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import {
@@ -21,69 +21,8 @@
 		Textbox,
 	} from "@gitbutler/ui";
 
-	import { onMount, tick } from "svelte";
-	import { run } from "svelte/legacy";
-
-	const gitConfigService = inject(GIT_CONFIG_SERVICE);
-	const secretsService = inject(SECRET_SERVICE);
-	const aiService = inject(AI_SERVICE);
 	const userService = inject(USER_SERVICE);
-	let initialized = false;
-
-	let modelKind: ModelKind | undefined = $state();
-	let openAIKeyOption: KeyOption | undefined = $state();
-	let anthropicKeyOption: KeyOption | undefined = $state();
-	let openAIKey: string | undefined = $state();
-	let openAICustomEndpoint: string | undefined = $state();
-	let openAIModelName: OpenAIModelName | undefined = $state();
-	let anthropicKey: string | undefined = $state();
-	let anthropicModelName: AnthropicModelName | undefined = $state();
-	let diffLengthLimit: number | undefined = $state();
-	let ollamaEndpoint: string | undefined = $state();
-	let ollamaModel: string | undefined = $state();
-	let lmStudioEndpoint: string | undefined = $state();
-	let lmStudioModel: string | undefined = $state();
-	let openRouterKey: string | undefined = $state();
-	let openRouterModel: string | undefined = $state();
-
-	async function setConfiguration(key: GitAIConfigKey, value: string | undefined) {
-		if (!initialized) return;
-		gitConfigService.set(key, value || "");
-	}
-
-	async function setSecret(handle: AISecretHandle, secret: string | undefined) {
-		if (!initialized) return;
-		await secretsService.set(handle, secret || "");
-	}
-
-	onMount(async () => {
-		modelKind = await aiService.getModelKind();
-
-		openAIKeyOption = await aiService.getOpenAIKeyOption();
-		openAIModelName = await aiService.getOpenAIModelName();
-		openAIKey = await aiService.getOpenAIKey();
-		openAICustomEndpoint = await aiService.getOpenAICustomEndpoint();
-
-		anthropicKeyOption = await aiService.getAnthropicKeyOption();
-		anthropicModelName = await aiService.getAnthropicModelName();
-		anthropicKey = await aiService.getAnthropicKey();
-
-		diffLengthLimit = await aiService.getDiffLengthLimit();
-
-		ollamaEndpoint = await aiService.getOllamaEndpoint();
-		ollamaModel = await aiService.getOllamaModelName();
-
-		lmStudioEndpoint = await aiService.getLMStudioEndpoint();
-		lmStudioModel = await aiService.getLMStudioModelName();
-
-		openRouterKey = await aiService.getOpenRouterKey();
-		openRouterModel = await aiService.getOpenRouterModelName();
-
-		// Ensure reactive declarations have finished running before we set initialized to true
-		await tick();
-
-		initialized = true;
-	});
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
 
 	const keyOptions = [
 		{
@@ -99,30 +38,30 @@
 	const openAIModelOptions = [
 		{
 			label: "GPT 5.4",
-			value: OpenAIModelName.GPT54,
+			value: "gpt-5.4",
 		},
 		{
 			label: "GPT 5.4 Mini",
-			value: OpenAIModelName.GPT54Mini,
+			value: "gpt-5.4-mini",
 		},
 		{
 			label: "GPT 5.4 Nano (recommended)",
-			value: OpenAIModelName.GPT54Nano,
+			value: "gpt-5.4-nano",
 		},
 	];
 
 	const anthropicModelOptions = [
 		{
 			label: "Haiku (recommended)",
-			value: AnthropicModelName.Haiku,
+			value: "claude-sonnet-4.5-20250514",
 		},
 		{
 			label: "Sonnet",
-			value: AnthropicModelName.Sonnet,
+			value: "claude-opus-4.1-20250514",
 		},
 		{
 			label: "Opus",
-			value: AnthropicModelName.Opus,
+			value: "claude-haiku-4.5-20250514",
 		},
 	];
 
@@ -130,56 +69,9 @@
 
 	function onFormChange(form: HTMLFormElement) {
 		const formData = new FormData(form);
-		modelKind = formData.get("modelKind") as ModelKind;
+		const modelKind = formData.get("modelKind") as ModelKind;
+		globalDraftStore.updateAISettings({ modelKind });
 	}
-	run(() => {
-		setConfiguration(GitAIConfigKey.ModelProvider, modelKind);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OpenAIKeyOption, openAIKeyOption);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OpenAIModelName, openAIModelName);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OpenAICustomEndpoint, openAICustomEndpoint);
-	});
-	run(() => {
-		setSecret(AISecretHandle.OpenAIKey, openAIKey);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.AnthropicKeyOption, anthropicKeyOption);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.AnthropicModelName, anthropicModelName);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.DiffLengthLimit, diffLengthLimit?.toString());
-	});
-	run(() => {
-		setSecret(AISecretHandle.AnthropicKey, anthropicKey);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OllamaEndpoint, ollamaEndpoint);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OllamaModelName, ollamaModel);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.LMStudioEndpoint, lmStudioEndpoint);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.LMStudioModelName, lmStudioModel);
-	});
-	run(() => {
-		setSecret(AISecretHandle.OpenRouterKey, openRouterKey);
-	});
-	run(() => {
-		setConfiguration(GitAIConfigKey.OpenRouterModelName, openRouterModel);
-	});
-	run(() => {
-		if (form) form.modelKind.value = modelKind;
-	});
 </script>
 
 {#snippet shortNote(text: string)}
@@ -204,25 +96,28 @@
 				<RadioButton name="modelKind" id="open-ai" value={ModelKind.OpenAI} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if modelKind === ModelKind.OpenAI}
+		{#if globalDraftStore.draft.ai.modelKind === ModelKind.OpenAI}
 			<CardGroup.Item>
 				<Select
-					value={openAIKeyOption}
+					value={globalDraftStore.draft.ai.openAIKeyOption}
 					options={keyOptions}
 					wide
 					label="Do you want to provide your own key?"
 					onselect={(value) => {
-						openAIKeyOption = value as KeyOption;
+						globalDraftStore.updateAISettings({ openAIKeyOption: value as KeyOption });
 					}}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
-						<SelectItem selected={item.value === openAIKeyOption} {highlighted}>
+						<SelectItem
+							selected={item.value === globalDraftStore.draft.ai.openAIKeyOption}
+							{highlighted}
+						>
 							{item.label}
 						</SelectItem>
 					{/snippet}
 				</Select>
 
-				{#if openAIKeyOption === KeyOption.ButlerAPI}
+				{#if globalDraftStore.draft.ai.openAIKeyOption === KeyOption.ButlerAPI}
 					{#if !userService.user}
 						<AuthorizationBanner message="Please sign in to use the GitButler API." />
 					{:else}
@@ -230,26 +125,32 @@
 					{/if}
 				{/if}
 
-				{#if openAIKeyOption === KeyOption.BringYourOwn}
+				{#if globalDraftStore.draft.ai.openAIKeyOption === KeyOption.BringYourOwn}
 					<Textbox
 						label="API key"
 						type="password"
-						bind:value={openAIKey}
+						value={globalDraftStore.draft.ai.openAIKey}
 						required
 						placeholder="sk-..."
+						oninput={(value: string) => {
+							globalDraftStore.updateAISettings({ openAIKey: value });
+						}}
 					/>
 
 					<Select
-						value={openAIModelName}
+						value={globalDraftStore.draft.ai.openAIModelName}
 						options={openAIModelOptions}
 						label="Model version"
 						wide
 						onselect={(value) => {
-							openAIModelName = value as OpenAIModelName;
+							globalDraftStore.updateAISettings({ openAIModelName: value as OpenAIModelName });
 						}}
 					>
 						{#snippet itemSnippet({ item, highlighted })}
-							<SelectItem selected={item.value === openAIModelName} {highlighted}>
+							<SelectItem
+								selected={item.value === globalDraftStore.draft.ai.openAIModelName}
+								{highlighted}
+							>
 								{item.label}
 							</SelectItem>
 						{/snippet}
@@ -257,8 +158,11 @@
 
 					<Textbox
 						label="Custom endpoint"
-						bind:value={openAICustomEndpoint}
+						value={globalDraftStore.draft.ai.openAICustomEndpoint}
 						placeholder="https://api.openai.com/v1"
+						oninput={(value: string) => {
+							globalDraftStore.updateAISettings({ openAICustomEndpoint: value });
+						}}
 					/>
 				{/if}
 			</CardGroup.Item>
@@ -272,25 +176,28 @@
 				<RadioButton name="modelKind" id="anthropic" value={ModelKind.Anthropic} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if modelKind === ModelKind.Anthropic}
+		{#if globalDraftStore.draft.ai.modelKind === ModelKind.Anthropic}
 			<CardGroup.Item>
 				<Select
-					value={anthropicKeyOption}
+					value={globalDraftStore.draft.ai.anthropicKeyOption}
 					options={keyOptions}
 					wide
 					label="Do you want to provide your own key?"
 					onselect={(value) => {
-						anthropicKeyOption = value as KeyOption;
+						globalDraftStore.updateAISettings({ anthropicKeyOption: value as KeyOption });
 					}}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
-						<SelectItem selected={item.value === anthropicKeyOption} {highlighted}>
+						<SelectItem
+							selected={item.value === globalDraftStore.draft.ai.anthropicKeyOption}
+							{highlighted}
+						>
 							{item.label}
 						</SelectItem>
 					{/snippet}
 				</Select>
 
-				{#if anthropicKeyOption === KeyOption.ButlerAPI}
+				{#if globalDraftStore.draft.ai.anthropicKeyOption === KeyOption.ButlerAPI}
 					{#if !userService.user}
 						<AuthorizationBanner message="Please sign in to use the GitButler API." />
 					{:else}
@@ -300,25 +207,33 @@
 					{/if}
 				{/if}
 
-				{#if anthropicKeyOption === KeyOption.BringYourOwn}
+				{#if globalDraftStore.draft.ai.anthropicKeyOption === KeyOption.BringYourOwn}
 					<Textbox
 						label="API key"
 						type="password"
-						bind:value={anthropicKey}
+						value={globalDraftStore.draft.ai.anthropicKey}
 						required
 						placeholder="sk-ant-api03-..."
+						oninput={(value: string) => {
+							globalDraftStore.updateAISettings({ anthropicKey: value });
+						}}
 					/>
 
 					<Select
-						value={anthropicModelName}
+						value={globalDraftStore.draft.ai.anthropicModelName}
 						options={anthropicModelOptions}
 						label="Model version"
 						onselect={(value) => {
-							anthropicModelName = value as AnthropicModelName;
+							globalDraftStore.updateAISettings({
+								anthropicModelName: value as AnthropicModelName,
+							});
 						}}
 					>
 						{#snippet itemSnippet({ item, highlighted })}
-							<SelectItem selected={item.value === anthropicModelName} {highlighted}>
+							<SelectItem
+								selected={item.value === globalDraftStore.draft.ai.anthropicModelName}
+								{highlighted}
+							>
 								{item.label}
 							</SelectItem>
 						{/snippet}
@@ -335,14 +250,24 @@
 				<RadioButton name="modelKind" id="ollama" value={ModelKind.Ollama} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if modelKind === ModelKind.Ollama}
+		{#if globalDraftStore.draft.ai.modelKind === ModelKind.Ollama}
 			<CardGroup.Item>
 				<Textbox
 					label="Endpoint"
-					bind:value={ollamaEndpoint}
+					value={globalDraftStore.draft.ai.ollamaEndpoint}
 					placeholder="http://127.0.0.1:11434"
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ ollamaEndpoint: value });
+					}}
 				/>
-				<Textbox label="Model" bind:value={ollamaModel} placeholder="llama3" />
+				<Textbox
+					label="Model"
+					value={globalDraftStore.draft.ai.ollamaModel}
+					placeholder="llama3"
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ ollamaModel: value });
+					}}
+				/>
 				<InfoMessage filled outlined={false}>
 					{#snippet title()}
 						Configuring Ollama
@@ -366,14 +291,24 @@
 				<RadioButton name="modelKind" id="lmstudio" value={ModelKind.LMStudio} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if modelKind === ModelKind.LMStudio}
+		{#if globalDraftStore.draft.ai.modelKind === ModelKind.LMStudio}
 			<CardGroup.Item>
 				<Textbox
 					label="Endpoint"
-					bind:value={lmStudioEndpoint}
+					value={globalDraftStore.draft.ai.lmStudioEndpoint}
 					placeholder="http://127.0.0.1:1234"
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ lmStudioEndpoint: value });
+					}}
 				/>
-				<Textbox label="Model" bind:value={lmStudioModel} placeholder="default" />
+				<Textbox
+					label="Model"
+					value={globalDraftStore.draft.ai.lmStudioModel}
+					placeholder="default"
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ lmStudioModel: value });
+					}}
+				/>
 				<InfoMessage filled outlined={false}>
 					{#snippet title()}
 						Configuring LM Studio
@@ -411,17 +346,27 @@
 				<RadioButton name="modelKind" id="openrouter" value={ModelKind.OpenRouter} />
 			{/snippet}
 		</CardGroup.Item>
-		{#if modelKind === ModelKind.OpenRouter}
+		{#if globalDraftStore.draft.ai.modelKind === ModelKind.OpenRouter}
 			<CardGroup.Item>
 				<Textbox
 					label="API key"
 					type="password"
-					bind:value={openRouterKey}
+					value={globalDraftStore.draft.ai.openRouterKey}
 					required
 					placeholder="sk-or-..."
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ openRouterKey: value });
+					}}
 				/>
 
-				<Textbox label="Model" bind:value={openRouterModel} placeholder="openai/gpt-4.1-mini" />
+				<Textbox
+					label="Model"
+					value={globalDraftStore.draft.ai.openRouterModel}
+					placeholder="openai/gpt-4.1-mini"
+					oninput={(value: string) => {
+						globalDraftStore.updateAISettings({ openRouterModel: value });
+					}}
+				/>
 			</CardGroup.Item>
 		{/if}
 
@@ -445,10 +390,10 @@
 			type="number"
 			width={80}
 			textAlign="center"
-			value={diffLengthLimit?.toString()}
+			value={globalDraftStore.draft.ai.diffLengthLimit?.toString()}
 			minVal={100}
 			oninput={(value: string) => {
-				diffLengthLimit = parseInt(value);
+				globalDraftStore.updateAISettings({ diffLengthLimit: parseInt(value) });
 			}}
 			placeholder="5000"
 		/>

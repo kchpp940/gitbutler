@@ -15,14 +15,11 @@
 	import { BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
 	import { showError } from "$lib/error/showError";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
-	import { FORGE_SCOPE_SERVICE } from "$lib/forge/forgeScopeService.svelte";
 	import { GITHUB_CLIENT } from "$lib/forge/github/githubClient";
-	import { githubAccountIdentifierToString } from "$lib/forge/github/githubUserService.svelte";
 	import { useGitHubAccessToken } from "$lib/forge/github/hooks.svelte";
 	import { createGitLabProjectId } from "$lib/forge/gitlab/gitlab";
 	import { GITLAB_CLIENT } from "$lib/forge/gitlab/gitlabClient.svelte";
 	import { GITLAB_USER_SERVICE } from "$lib/forge/gitlab/gitlabUserService.svelte";
-	import { gitlabAccountIdentifierToString } from "$lib/forge/gitlab/gitlabUserService.svelte";
 	import { useGitLabAccessToken } from "$lib/forge/gitlab/hooks.svelte";
 	import { GIT_SERVICE } from "$lib/git/gitService";
 	import { IRC_API_SERVICE } from "$lib/irc/ircApiService";
@@ -99,27 +96,18 @@
 	const modeQuery = $derived(modeService.mode(projectId));
 
 	// =============================================================================
-	// FORGE INTEGRATION (GitHub & GitLab) — unified via ForgeScopeService
+	// FORGE INTEGRATION (GitHub & GitLab)
 	// =============================================================================
 
 	const gitHubClient = inject(GITHUB_CLIENT);
 	const gitLabClient = inject(GITLAB_CLIENT);
 	const gitlabUserService = inject(GITLAB_USER_SERVICE);
 	const forgeFactory = inject(DEFAULT_FORGE_FACTORY);
-	const forgeScopeService = inject(FORGE_SCOPE_SERVICE);
 
 	const githubAccessToken = useGitHubAccessToken(reactive(() => projectId));
 	const gitlabAccessToken = useGitLabAccessToken(reactive(() => projectId));
 
-	const githubAccountKey = $derived.by(() => {
-		const account = githubAccessToken.preferredAccount.current;
-		return account ? githubAccountIdentifierToString(account) : undefined;
-	});
-	const gitlabAccountKey = $derived.by(() => {
-		const account = gitlabAccessToken.preferredAccount.current;
-		return account ? gitlabAccountIdentifierToString(account) : undefined;
-	});
-
+	// GitHub setup
 	$effect.pre(() => gitHubClient.setToken(githubAccessToken.accessToken.current));
 	$effect.pre(() => gitHubClient.setHost(githubAccessToken.host.current));
 	$effect.pre(() => gitHubClient.setRepo({ owner: repoInfo?.owner, repo: repoInfo?.name }));
@@ -145,6 +133,7 @@
 		gitlabTokenIsLoading && !gitlabForkProjectId && !gitlabUpstreamProjectId,
 	);
 
+	// GitLab setup
 	$effect.pre(() => {
 		const accessToken = gitlabAccessToken.accessToken.current;
 		if (accessToken && gitlabForkProjectId && gitlabUpstreamProjectId) {
@@ -157,29 +146,27 @@
 		}
 	});
 
+	// GitLab migration
+	// Migrate the stored access token from the old location to the new one on app load
 	$effect(() => {
 		if (projectId) {
 			gitlabUserService.migrate(projectId);
 		}
 	});
 
-	const forgeIsLoading = $derived(
-		githubAccessToken.isLoading.current || gitlabIsLoading || detectedForgeProviderIsLoading,
-	);
-
+	// Forge factory configuration
 	$effect(() => {
-		forgeScopeService.updateScope({
+		forgeFactory.setConfig({
 			repo: repoInfo,
 			pushRepo: forkInfo,
 			baseBranch: baseBranchName,
-			forgeProvider: detectedForgeProvider ?? undefined,
-			forgeOverride: projects?.find((project) => project.id === projectId)?.forge_override,
-			githubAccountKey,
-			gitlabAccountKey,
 			githubAuthenticated: !!githubAccessToken.accessToken.current,
-			gitlabAuthenticated: !!gitlabAccessToken.accessToken.current,
-			forgeIsLoading,
+			forgeIsLoading:
+				githubAccessToken.isLoading.current || gitlabIsLoading || detectedForgeProviderIsLoading,
 			githubError: githubAccessToken.error.current,
+			gitlabAuthenticated: !!gitlabAccessToken.accessToken.current,
+			detectedForgeProvider: detectedForgeProvider ?? undefined,
+			forgeOverride: projects?.find((project) => project.id === projectId)?.forge_override,
 		});
 	});
 

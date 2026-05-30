@@ -1,13 +1,12 @@
 <script lang="ts">
-	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
-	import { inject } from "@gitbutler/core/context";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { CardGroup, Link, TestId, Toggle } from "@gitbutler/ui";
 
-	const settingsService = inject(SETTINGS_SERVICE);
-	const appSettings = $derived(settingsService.appSettings);
-	const errorReportingEnabled = $derived($appSettings?.telemetry.appErrorReportingEnabled);
-	const metricsEnabled = $derived($appSettings?.telemetry.appMetricsEnabled);
-	const nonAnonMetricsEnabled = $derived($appSettings?.telemetry.appNonAnonMetricsEnabled);
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
+	const telemetry = $derived(globalDraftStore.draft.appSettings.telemetry);
+	const errorReportingEnabled = $derived(telemetry?.appErrorReportingEnabled);
+	const metricsEnabled = $derived(telemetry?.appMetricsEnabled);
+	const nonAnonMetricsEnabled = $derived(telemetry?.appNonAnonMetricsEnabled);
 </script>
 
 <div class="analytics-settings__content">
@@ -41,8 +40,11 @@
 				testId={TestId.OnboardingPageAnalyticsSettingsErrorReportingToggle}
 				checked={errorReportingEnabled}
 				onclick={() =>
-					settingsService.updateTelemetry({
-						appErrorReportingEnabled: !errorReportingEnabled,
+					globalDraftStore.updateAppSettings({
+						telemetry: {
+							...globalDraftStore.draft.appSettings.telemetry,
+							appErrorReportingEnabled: !errorReportingEnabled,
+						},
 					})}
 			/>
 		{/snippet}
@@ -61,8 +63,11 @@
 				testId={TestId.OnboardingPageAnalyticsSettingsTelemetryToggle}
 				checked={metricsEnabled}
 				onclick={() =>
-					settingsService.updateTelemetry({
-						appMetricsEnabled: !metricsEnabled,
+					globalDraftStore.updateAppSettings({
+						telemetry: {
+							...globalDraftStore.draft.appSettings.telemetry,
+							appMetricsEnabled: !metricsEnabled,
+						},
 					})}
 			/>
 		{/snippet}
@@ -81,8 +86,11 @@
 				testId={TestId.OnboardingPageAnalyticsSettingsNonAnonymousToggle}
 				checked={nonAnonMetricsEnabled}
 				onclick={() =>
-					settingsService.updateTelemetry({
-						appNonAnonMetricsEnabled: !nonAnonMetricsEnabled,
+					globalDraftStore.updateAppSettings({
+						telemetry: {
+							...globalDraftStore.draft.appSettings.telemetry,
+							appNonAnonMetricsEnabled: !nonAnonMetricsEnabled,
+						},
 					})}
 			/>
 		{/snippet}

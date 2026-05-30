@@ -15,7 +15,7 @@
 
 	const forge = inject(DEFAULT_FORGE_FACTORY);
 	const prService = $derived(forge.current.prService);
-	const prQuery = $derived(prService?.get(prNumber));
+	const prQuery = $derived(prService?.get(prNumber, { forceRefetch: true }));
 </script>
 
 <ReduxResult result={prQuery?.result} {projectId} {onerror}>

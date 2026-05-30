@@ -1,19 +1,17 @@
 <script lang="ts">
 	import { IRC_API_SERVICE } from "$lib/irc/ircApiService";
-	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Badge, Button, CardGroup, Textbox, Toggle } from "@gitbutler/ui";
 	import type { IconName } from "@gitbutler/ui";
 	import type { ComponentColorType } from "@gitbutler/ui/utils/colorTypes";
 
-	const settingsService = inject(SETTINGS_SERVICE);
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
 	const userService = inject(USER_SERVICE);
 	const ircApiService = inject(IRC_API_SERVICE);
 
-	const settings = settingsService.appSettings;
-
-	const irc = $derived($settings?.irc);
+	const irc = $derived(globalDraftStore.draft.appSettings.irc);
 
 	function connectionBadge(state: string | undefined): {
 		style: ComponentColorType;
@@ -46,7 +44,9 @@
 
 	async function disconnect() {
 		await ircApiService.disconnect();
-		await settingsService.updateIrc({ connection: { enabled: false } });
+		globalDraftStore.updateAppSettings({
+			irc: { ...globalDraftStore.draft.appSettings.irc, connection: { enabled: false } },
+		});
 	}
 </script>
 
@@ -59,11 +59,14 @@
 		<CardGroup.Item>
 			<div class="server-config">
 				<Textbox
-					value={irc.server.host}
+					value={irc.server!.host}
 					size="large"
 					label="Server Host"
 					placeholder="irc.gitbutler.com"
-					onchange={(value) => settingsService.updateIrc({ server: { host: value } })}
+					onchange={(value) =>
+						globalDraftStore.updateAppSettings({
+							irc: { ...globalDraftStore.draft.appSettings.irc, server: { host: value } },
+						})}
 				/>
 			</div>
 		</CardGroup.Item>
@@ -79,7 +82,10 @@
 				<Toggle
 					id="auto-share"
 					checked={irc.autoShare}
-					onclick={() => settingsService.updateIrc({ autoShare: !irc.autoShare })}
+					onclick={() =>
+						globalDraftStore.updateAppSettings({
+							irc: { ...globalDraftStore.draft.appSettings.irc, autoShare: !irc.autoShare },
+						})}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -90,7 +96,7 @@
 			{#snippet title()}
 				<span class="enable-row">
 					Connect
-					{#if irc.connection.enabled}
+					{#if irc.connection?.enabled}
 						<Badge style={status.style} kind="soft" size="tag" icon={status.icon}>
 							{status.label}
 						</Badge>
@@ -103,10 +109,13 @@
 			{#snippet actions()}
 				<Toggle
 					id="irc-enabled"
-					checked={irc.connection.enabled}
+					checked={irc.connection!.enabled}
 					onclick={() =>
-						settingsService.updateIrc({
-							connection: { enabled: !irc.connection.enabled },
+						globalDraftStore.updateAppSettings({
+							irc: {
+								...globalDraftStore.draft.appSettings.irc,
+								connection: { enabled: !irc.connection!.enabled },
+							},
 						})}
 				/>
 			{/snippet}
@@ -114,23 +123,34 @@
 
 		<CardGroup.Item>
 			<Textbox
-				value={irc.connection.nickname ?? ""}
+				value={irc.connection!.nickname ?? ""}
 				size="large"
 				label="Nickname"
 				placeholder={userService.user?.login ?? "your-nickname"}
-				onchange={(value) => settingsService.updateIrc({ connection: { nickname: value || null } })}
+				onchange={(value) =>
+					globalDraftStore.updateAppSettings({
+						irc: {
+							...globalDraftStore.draft.appSettings.irc,
+							connection: { nickname: value || null },
+						},
+					})}
 			/>
 		</CardGroup.Item>
 
 		<CardGroup.Item>
 			<Textbox
-				value={irc.connection.serverPassword ?? ""}
+				value={irc.connection!.serverPassword ?? ""}
 				size="large"
 				type="password"
 				label="Server Password"
 				placeholder="Shared connection password"
 				onchange={(value) =>
-					settingsService.updateIrc({ connection: { serverPassword: value || null } })}
+					globalDraftStore.updateAppSettings({
+						irc: {
+							...globalDraftStore.draft.appSettings.irc,
+							connection: { serverPassword: value || null },
+						},
+					})}
 			/>
 			<p class="text-11 text-body caption-text">
 				Stored in plaintext. Use the password you were given.
@@ -139,13 +159,18 @@
 
 		<CardGroup.Item>
 			<Textbox
-				value={irc.connection.saslPassword ?? ""}
+				value={irc.connection!.saslPassword ?? ""}
 				size="large"
 				type="password"
 				label="Account Password"
 				placeholder="Your account password"
 				onchange={(value) =>
-					settingsService.updateIrc({ connection: { saslPassword: value || null } })}
+					globalDraftStore.updateAppSettings({
+						irc: {
+							...globalDraftStore.draft.appSettings.irc,
+							connection: { saslPassword: value || null },
+						},
+					})}
 			/>
 			<p class="text-11 text-body caption-text">
 				Stored in plaintext — do not reuse a password from another service. Used for SASL
@@ -155,11 +180,17 @@
 
 		<CardGroup.Item>
 			<Textbox
-				value={irc.connection.realname ?? ""}
+				value={irc.connection!.realname ?? ""}
 				size="large"
 				label="Real Name"
 				placeholder={userService.user?.name ?? userService.user?.login ?? "Your Name"}
-				onchange={(value) => settingsService.updateIrc({ connection: { realname: value || null } })}
+				onchange={(value) =>
+					globalDraftStore.updateAppSettings({
+						irc: {
+							...globalDraftStore.draft.appSettings.irc,
+							connection: { realname: value || null },
+						},
+					})}
 			/>
 		</CardGroup.Item>
 
@@ -169,7 +200,10 @@
 				size="large"
 				label="Project channel"
 				placeholder="#<project-name> (auto)"
-				onchange={(value) => settingsService.updateIrc({ projectChannel: value || null })}
+				onchange={(value) =>
+					globalDraftStore.updateAppSettings({
+						irc: { ...globalDraftStore.draft.appSettings.irc, projectChannel: value || null },
+					})}
 			/>
 			<p class="text-11 text-body caption-text">
 				Channel to join when opening a project. Leave empty to auto-derive

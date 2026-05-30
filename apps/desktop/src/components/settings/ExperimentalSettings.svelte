@@ -1,13 +1,10 @@
 <script lang="ts">
-	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
-	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Toggle } from "@gitbutler/ui";
 
-	const settingsService = inject(SETTINGS_SERVICE);
-	const settingsStore = settingsService.appSettings;
-
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
 	const userService = inject(USER_SERVICE);
 </script>
 
@@ -28,8 +25,12 @@
 		{#snippet actions()}
 			<Toggle
 				id="f-mode"
-				checked={$fModeEnabled}
-				onclick={() => fModeEnabled.set(!$fModeEnabled)}
+				checked={globalDraftStore.draft.uiPreferences.fModeEnabled ?? false}
+				onclick={() => {
+					globalDraftStore.updateUIPreferences({
+						fModeEnabled: !globalDraftStore.draft.uiPreferences.fModeEnabled,
+					});
+				}}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -45,10 +46,13 @@
 			{#snippet actions()}
 				<Toggle
 					id="single-branch"
-					checked={$settingsStore?.featureFlags.singleBranch}
+					checked={globalDraftStore.draft.appSettings.featureFlags?.singleBranch ?? false}
 					onclick={() =>
-						settingsService.updateFeatureFlags({
-							singleBranch: !$settingsStore?.featureFlags.singleBranch,
+						globalDraftStore.updateAppSettings({
+							featureFlags: {
+								singleBranch:
+									!globalDraftStore.draft.appSettings.featureFlags?.singleBranch,
+							},
 						})}
 				/>
 			{/snippet}
@@ -65,9 +69,11 @@
 		{#snippet actions()}
 			<Toggle
 				id="irc"
-				checked={$settingsStore?.featureFlags.irc}
+				checked={globalDraftStore.draft.appSettings.featureFlags?.irc ?? false}
 				onclick={() =>
-					settingsService.updateFeatureFlags({ irc: !$settingsStore?.featureFlags.irc })}
+					globalDraftStore.updateAppSettings({
+						featureFlags: { irc: !globalDraftStore.draft.appSettings.featureFlags?.irc },
+					})}
 			/>
 		{/snippet}
 	</CardGroup.Item>

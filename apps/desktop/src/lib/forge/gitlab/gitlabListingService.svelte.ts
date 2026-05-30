@@ -1,7 +1,7 @@
 import { gitlab } from "$lib/forge/gitlab/gitlabClient.svelte";
 import { mrToInstance } from "$lib/forge/gitlab/types";
 import { createSelectByIds } from "$lib/state/customSelectors";
-import { invalidatesScopedList, providesScopedList, ReduxTag } from "$lib/state/tags";
+import { invalidatesList, providesList, ReduxTag } from "$lib/state/tags";
 import { toSerializable } from "@gitbutler/shared/network/types";
 import { isDefined } from "@gitbutler/ui/utils/typeguards";
 import { createEntityAdapter, type EntityState } from "@reduxjs/toolkit";
@@ -9,23 +9,20 @@ import type { ForgeListingService } from "$lib/forge/interface/forgeListingServi
 import type { PullRequest } from "$lib/forge/interface/types";
 import type { AppDispatch, GitLabApi } from "$lib/state/clientState.svelte";
 
-const DEFAULT_LIST_POLLING_INTERVAL = 15 * 60 * 1000;
-
 export class GitLabListingService implements ForgeListingService {
 	private api: ReturnType<typeof injectEndpoints>;
 
 	constructor(
 		gitLabApi: GitLabApi,
 		private readonly dispatch: AppDispatch,
-		private readonly scopeId?: string,
 	) {
-		this.api = injectEndpoints(gitLabApi, scopeId);
+		this.api = injectEndpoints(gitLabApi);
 	}
 
-	list(projectId: string) {
+	list(projectId: string, pollingInterval?: number) {
 		return this.api.endpoints.listPrs.useQuery(projectId, {
 			transform: (result) => prSelectors.selectAll(result),
-			subscriptionOptions: { pollingInterval: DEFAULT_LIST_POLLING_INTERVAL },
+			subscriptionOptions: { pollingInterval },
 		});
 	}
 
@@ -51,15 +48,11 @@ export class GitLabListingService implements ForgeListingService {
 	}
 
 	async refresh(_projectId: string): Promise<void> {
-		this.dispatch(
-			this.api.util.invalidateTags([
-				invalidatesScopedList(ReduxTag.PullRequests, this.scopeId ?? ""),
-			]),
-		);
+		this.dispatch(this.api.util.invalidateTags([invalidatesList(ReduxTag.PullRequests)]));
 	}
 }
 
-function injectEndpoints(api: GitLabApi, scopeId?: string) {
+function injectEndpoints(api: GitLabApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			listPrs: build.query<EntityState<PullRequest, string>, string>({
@@ -85,7 +78,7 @@ function injectEndpoints(api: GitLabApi, scopeId?: string) {
 						return { error: toSerializable(e) };
 					}
 				},
-				providesTags: [providesScopedList(ReduxTag.PullRequests, scopeId ?? "")],
+				providesTags: [providesList(ReduxTag.PullRequests)],
 			}),
 			listPrsByBranch: build.query<PullRequest | null, { projectId: string; branchName: string }>({
 				queryFn: async ({ branchName }, query) => {

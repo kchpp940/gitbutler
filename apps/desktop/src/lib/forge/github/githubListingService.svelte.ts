@@ -6,14 +6,12 @@ import {
 	type PullRequest,
 } from "$lib/forge/interface/types";
 import { createSelectByIds } from "$lib/state/customSelectors";
-import { invalidatesScopedList, providesScopedList, ReduxTag } from "$lib/state/tags";
+import { invalidatesList, providesList, ReduxTag } from "$lib/state/tags";
 import { isDefined } from "@gitbutler/ui/utils/typeguards";
 import { createEntityAdapter, type EntityState } from "@reduxjs/toolkit";
 import type { ForgeListingService } from "$lib/forge/interface/forgeListingService";
 import type { BackendApi } from "$lib/state/backendApi";
 import type { AppDispatch, GitHubApi } from "$lib/state/clientState.svelte";
-
-const DEFAULT_LIST_POLLING_INTERVAL = 15 * 60 * 1000;
 
 export class GitHubListingService implements ForgeListingService {
 	private api: ReturnType<typeof injectEndpoints>;
@@ -23,16 +21,15 @@ export class GitHubListingService implements ForgeListingService {
 		gitHubApi: GitHubApi,
 		backendApi: BackendApi,
 		private readonly dispatch: AppDispatch,
-		private readonly scopeId?: string,
 	) {
 		this.api = injectEndpoints(gitHubApi);
-		this.backendApi = injectBackendEndpoints(backendApi, scopeId);
+		this.backendApi = injectBackendEndpoints(backendApi);
 	}
 
-	list(projectId: string) {
+	list(projectId: string, pollingInterval?: number) {
 		return this.backendApi.endpoints.listPrs.useQuery(projectId, {
 			transform: (result) => prSelectors.selectAll(result),
-			subscriptionOptions: { pollingInterval: DEFAULT_LIST_POLLING_INTERVAL },
+			subscriptionOptions: { pollingInterval },
 		});
 	}
 
@@ -61,15 +58,11 @@ export class GitHubListingService implements ForgeListingService {
 	}
 
 	async refresh(_projectId: string): Promise<void> {
-		this.dispatch(
-			this.backendApi.util.invalidateTags([
-				invalidatesScopedList(ReduxTag.PullRequests, this.scopeId ?? ""),
-			]),
-		);
+		this.dispatch(this.backendApi.util.invalidateTags([invalidatesList(ReduxTag.PullRequests)]));
 	}
 }
 
-function injectBackendEndpoints(api: BackendApi, scopeId?: string) {
+function injectBackendEndpoints(api: BackendApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			listPrs: build.query<EntityState<PullRequest, string>, string>({
@@ -81,7 +74,7 @@ function injectBackendEndpoints(api: BackendApi, scopeId?: string) {
 					const prs = response.map((pr) => mapForgeReviewToPullRequest(pr));
 					return prAdapter.addMany(prAdapter.getInitialState(), prs);
 				},
-				providesTags: [providesScopedList(ReduxTag.PullRequests, scopeId ?? "")],
+				providesTags: [providesList(ReduxTag.PullRequests)],
 			}),
 		}),
 	});

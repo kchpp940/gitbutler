@@ -14,7 +14,6 @@ export class DefaultForge implements Forge {
 	name: ForgeName;
 	authenticated = false;
 	isLoading = false;
-	scopeId = undefined;
 
 	constructor() {
 		this.name = "default";

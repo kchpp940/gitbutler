@@ -1,10 +1,9 @@
+import { AZURE_DOMAIN, AzureDevOps } from "$lib/forge/azure/azure";
+import { BitBucket, BITBUCKET_DOMAIN } from "$lib/forge/bitbucket/bitbucket";
 import { DefaultForge } from "$lib/forge/default/default";
 import { GitHub, GITHUB_DOMAIN } from "$lib/forge/github/github";
 import { GitHubClient } from "$lib/forge/github/githubClient";
 import { GitLab, GITLAB_DOMAIN, GITLAB_SUB_DOMAIN } from "$lib/forge/gitlab/gitlab";
-import { BitBucket, BITBUCKET_DOMAIN } from "$lib/forge/bitbucket/bitbucket";
-import { AzureDevOps, AZURE_DOMAIN } from "$lib/forge/azure/azure";
-import type { ForgeScope } from "$lib/forge/forgeScope";
 import { InjectionToken } from "@gitbutler/core/context";
 import { deepCompare } from "@gitbutler/shared/compare";
 import type { ForgeProvider } from "$lib/baseBranch/baseBranch";
@@ -29,7 +28,6 @@ export type ForgeConfig = {
 	gitlabAuthenticated?: boolean;
 	detectedForgeProvider: ForgeProvider | undefined;
 	forgeOverride?: ForgeName;
-	scope?: ForgeScope;
 };
 
 export const DEFAULT_FORGE_FACTORY = new InjectionToken<DefaultForgeFactory>("DefaultForgeFactory");
@@ -40,7 +38,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 	private _config: any = undefined;
 	private _determinedForgeType = $state<ForgeName>("default");
 	private _githubError = $state<{ code?: Code; message: string } | undefined>(undefined);
-	private _scopeId = $state<string | undefined>(undefined);
 	private _canSetupIntegration = $derived.by(() => {
 		// Don't show the setup prompt if there's a network error
 		if (this._githubError?.code === "NetworkError") {
@@ -71,10 +68,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 
 	get determinedForgeType(): ForgeName {
 		return this._determinedForgeType;
-	}
-
-	get scopeId(): string | undefined {
-		return this._scopeId;
 	}
 
 	get canSetupIntegration(): AvailableForge | undefined {
@@ -117,15 +110,8 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			gitlabAuthenticated,
 			detectedForgeProvider,
 			forgeOverride,
-			scope,
 		} = config;
 		this._githubError = githubError;
-
-		if (scope) {
-			this.setScope(scope, forgeIsLoading, githubError);
-			return;
-		}
-
 		if (repo && baseBranch) {
 			this._determinedForgeType = this.determineForgeType(repo, detectedForgeProvider);
 			this._forge = this.build({
@@ -142,17 +128,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			this._determinedForgeType = "default";
 			this._forge = this.default;
 		}
-	}
-
-	setScope(
-		scope: ForgeScope,
-		forgeIsLoading?: boolean,
-		githubError?: { code?: Code; message: string },
-	) {
-		this._scopeId = scope.id;
-		this._githubError = githubError;
-		this._determinedForgeType = scope.forgeName;
-		this._forge = this.buildFromScope(scope, forgeIsLoading);
 	}
 
 	build({
@@ -218,55 +193,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			return new BitBucket(baseParams);
 		}
 		if (forgeType === "azure") {
-			return new AzureDevOps(baseParams);
-		}
-		return this.default;
-	}
-
-	buildFromScope(scope: ForgeScope, forgeIsLoading?: boolean): Forge {
-		const { repo, pushRepo, baseBranch, forgeName, authenticated } = scope;
-		const forkStr =
-			pushRepo && pushRepo.hash !== repo.hash ? `${pushRepo.owner}:${pushRepo.name}` : undefined;
-
-		const baseParams = {
-			repo,
-			baseBranch,
-			forkStr,
-			authenticated,
-		};
-
-		if (forgeName === "github") {
-			const { gitHubClient, gitHubApi, posthog, backendApi, dispatch } = this.params;
-			return new GitHub({
-				...baseParams,
-				dispatch,
-				api: gitHubApi,
-				backendApi,
-				client: gitHubClient,
-				posthog: posthog,
-				authenticated,
-				isLoading: forgeIsLoading ?? false,
-				scope,
-			});
-		}
-		if (forgeName === "gitlab") {
-			const { gitLabClient, gitLabApi, posthog, dispatch, backendApi } = this.params;
-			return new GitLab({
-				...baseParams,
-				api: gitLabApi,
-				backendApi,
-				client: gitLabClient,
-				posthog: posthog,
-				authenticated,
-				dispatch,
-				isLoading: forgeIsLoading ?? false,
-				scope,
-			});
-		}
-		if (forgeName === "bitbucket") {
-			return new BitBucket(baseParams);
-		}
-		if (forgeName === "azure") {
 			return new AzureDevOps(baseParams);
 		}
 		return this.default;

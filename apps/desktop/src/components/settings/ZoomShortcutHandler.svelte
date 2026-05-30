@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SETTINGS_ORCHESTRATOR } from "$lib/settings/settingsOrchestrator";
 	import { SHORTCUT_SERVICE } from "$lib/shortcuts/shortcutService";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -7,33 +8,26 @@
 
 	const uiState = inject(UI_STATE);
 	const shortcutService = inject(SHORTCUT_SERVICE);
+	const orchestrator = inject(SETTINGS_ORCHESTRATOR);
 	const zoom = uiState.global.zoom;
 
-	const MIN_ZOOM = 0.375;
-	const MAX_ZOOM = 3;
-	const DEFAULT_ZOOM = 1;
 	const ZOOM_STEP = 0.0625;
+	const DEFAULT_ZOOM = 1;
 
-	function setDomZoom(zoom: number) {
-		document.documentElement.style.fontSize = zoom + "rem";
-	}
-
-	function updateZoom(newZoom: number) {
-		const clamped = Math.min(Math.max(newZoom, MIN_ZOOM), MAX_ZOOM);
-		setDomZoom(clamped);
-		zoom.set(clamped);
+	function setDomZoom(zoomValue: number) {
+		document.documentElement.style.fontSize = zoomValue + "rem";
 	}
 
 	$effect(() =>
 		mergeUnlisten(
 			shortcutService.on("zoom-in", () => {
-				updateZoom(zoom.current + ZOOM_STEP);
+				orchestrator.previewZoom(zoom.current + ZOOM_STEP);
 			}),
 			shortcutService.on("zoom-out", () => {
-				updateZoom(zoom.current - ZOOM_STEP);
+				orchestrator.previewZoom(zoom.current - ZOOM_STEP);
 			}),
 			shortcutService.on("zoom-reset", () => {
-				updateZoom(DEFAULT_ZOOM);
+				orchestrator.previewZoom(DEFAULT_ZOOM);
 			}),
 		),
 	);

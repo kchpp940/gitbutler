@@ -1,6 +1,3 @@
-import { injectOptional } from "@gitbutler/core/context";
-import type { QueryActionCreatorResult } from "@reduxjs/toolkit/query";
-import { createSubscriber } from "svelte/reactivity";
 import { ghQuery } from "$lib/forge/github/ghQuery";
 import {
 	ghResponseToInstance,
@@ -15,24 +12,16 @@ import {
 	type DetailedPullRequest,
 	type PullRequest,
 } from "$lib/forge/interface/types";
-import { getPollingInterval, eventualConsistencyCheck } from "$lib/forge/shared/progressivePolling";
-import {
-	FORGE_SCOPE_SERVICE,
-	type ScopedSubscription,
-} from "$lib/forge/forgeScopeService.svelte";
-import {
-	invalidatesScopedItem,
-	invalidatesScopedList,
-	providesScopedItem,
-	ReduxTag,
-} from "$lib/state/tags";
+import { eventualConsistencyCheck } from "$lib/forge/shared/progressivePolling";
+import { providesItem, invalidatesItem, ReduxTag, invalidatesList } from "$lib/state/tags";
 import { sleep } from "$lib/utils/sleep";
 import { writable } from "svelte/store";
 import type { ForgePrService } from "$lib/forge/interface/forgePrService";
 import type { BackendApi } from "$lib/state/backendApi";
-import type { QueryExtensions, QueryOptions, ReactiveQuery } from "$lib/state/butlerModule";
-import type { AppDispatch, GitHubApi } from "$lib/state/clientState.svelte";
+import type { QueryOptions } from "$lib/state/butlerModule";
+import type { GitHubApi } from "$lib/state/clientState.svelte";
 import type { PostHogWrapper } from "$lib/telemetry/posthog";
+import type { StartQueryActionCreatorOptions } from "@reduxjs/toolkit/query";
 
 export class GitHubPrService implements ForgePrService {
 	readonly unit = { name: "Pull request", abbr: "PR", symbol: "#" };
@@ -44,10 +33,9 @@ export class GitHubPrService implements ForgePrService {
 		githubApi: GitHubApi,
 		backendApi: BackendApi,
 		private posthog?: PostHogWrapper,
-		private readonly scopeId?: string,
 	) {
-		this.api = injectEndpoints(githubApi, scopeId);
-		this.backendApi = injectBackendEndpoints(backendApi, scopeId);
+		this.api = injectEndpoints(githubApi);
+		this.backendApi = injectBackendEndpoints(backendApi);
 	}
 
 	async createPr({
@@ -92,55 +80,13 @@ export class GitHubPrService implements ForgePrService {
 		throw lastError;
 	}
 
-	async fetch(number: number) {
-		const result = this.api.endpoints.getPr.fetch({ number });
+	async fetch(number: number, options?: QueryOptions) {
+		const result = this.api.endpoints.getPr.fetch({ number }, options);
 		return await result;
 	}
 
-	get(number: number): ReactiveQuery<DetailedPullRequest, QueryExtensions> {
-		const forgeScopeService = injectOptional(FORGE_SCOPE_SERVICE, undefined);
-		const pollingInterval = 60000;
-
-		let query: QueryActionCreatorResult<any> | undefined;
-
-		const subscription: ScopedSubscription = {
-			scopeId: this.scopeId ?? "",
-			key: `pr:${number}`,
-			stop: () => {
-				query?.unsubscribe();
-			},
-			cancel: () => {
-				query?.abort();
-			},
-		};
-
-		if (forgeScopeService) {
-			forgeScopeService.registerScopedSubscription(subscription);
-		}
-
-		const reactiveQuery = this.api.endpoints.getPr.useQuery({ number }, {
-			subscriptionOptions: { pollingInterval },
-		});
-
-		const subscribe = createSubscriber(() => {
-			query = this.api.endpoints.getPr.subscribe({ number }, {
-				subscriptionOptions: { pollingInterval },
-			});
-			return () => {
-				query?.unsubscribe();
-			};
-		});
-
-		return {
-			get result() {
-				subscribe();
-				return reactiveQuery.result;
-			},
-			get response() {
-				subscribe();
-				return reactiveQuery.response;
-			},
-		};
+	get(number: number, options?: StartQueryActionCreatorOptions) {
+		return this.api.endpoints.getPr.useQuery({ number }, options);
 	}
 
 	async merge(method: MergeMethod, number: number) {
@@ -194,28 +140,28 @@ async function fetchRepoPermissions(
 	}
 }
 
-function injectBackendEndpoints(api: BackendApi, scopeId?: string) {
+function injectBackendEndpoints(api: BackendApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			setAutoMerge: build.mutation<void, { projectId: string; reviewId: number; enable: boolean }>({
 				extraOptions: { command: "set_review_auto_merge" },
 				query: (args) => args,
 				invalidatesTags: (_res, _err, { reviewId }) => [
-					invalidatesScopedItem(ReduxTag.PullRequests, scopeId ?? "", reviewId),
+					invalidatesItem(ReduxTag.PullRequests, reviewId),
 				],
 			}),
 			setDraft: build.mutation<void, { projectId: string; reviewId: number; draft: boolean }>({
 				extraOptions: { command: "set_review_draftiness" },
 				query: (args) => args,
 				invalidatesTags: (_res, _err, { reviewId }) => [
-					invalidatesScopedItem(ReduxTag.PullRequests, scopeId ?? "", reviewId),
+					invalidatesItem(ReduxTag.PullRequests, reviewId),
 				],
 			}),
 		}),
 	});
 }
 
-function injectEndpoints(api: GitHubApi, scopeId?: string) {
+function injectEndpoints(api: GitHubApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			getPr: build.query<DetailedPullRequest, { number: number }>({
@@ -231,8 +177,10 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 
 					const prResponse = await eventualConsistencyCheck(getPrByNumber, (response) => {
 						if (response.error) {
+							// Stop if there's an error
 							return true;
 						}
+						// Stop if we have a valid response
 						return response.data?.updated_at !== undefined;
 					});
 
@@ -260,8 +208,7 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 
 					return { data: finalResult.data };
 				},
-				providesTags: (_result, _error, args) =>
-					providesScopedItem(ReduxTag.PullRequests, scopeId ?? "", args.number),
+				providesTags: (_result, _error, args) => providesItem(ReduxTag.PullRequests, args.number),
 			}),
 			createPr: build.mutation<
 				CreatePrResult,
@@ -274,9 +221,7 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 						parameters: { head, base, title, body, draft },
 						extra: api.extra,
 					}),
-				invalidatesTags: (result) => [
-					invalidatesScopedItem(ReduxTag.PullRequests, scopeId ?? "", result?.number),
-				],
+				invalidatesTags: (result) => [invalidatesItem(ReduxTag.PullRequests, result?.number)],
 			}),
 			mergePr: build.mutation<void, { number: number; method: MergeMethod }>({
 				queryFn: async ({ number, method: method }, api) => {
@@ -293,7 +238,7 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 
 					return { data: undefined };
 				},
-				invalidatesTags: [invalidatesScopedList(ReduxTag.PullRequests, scopeId ?? "")],
+				invalidatesTags: [invalidatesList(ReduxTag.PullRequests)],
 			}),
 			updatePr: build.mutation<
 				void,
@@ -323,7 +268,7 @@ function injectEndpoints(api: GitHubApi, scopeId?: string) {
 					}
 					return { data: undefined };
 				},
-				invalidatesTags: [invalidatesScopedList(ReduxTag.PullRequests, scopeId ?? "")],
+				invalidatesTags: [invalidatesList(ReduxTag.PullRequests)],
 			}),
 		}),
 	});

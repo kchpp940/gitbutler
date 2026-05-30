@@ -17,7 +17,6 @@ export class BitBucket implements Forge {
 	readonly name: ForgeName = "bitbucket";
 	readonly authenticated: boolean;
 	readonly isLoading = false;
-	readonly scopeId = undefined;
 	private baseUrl: string;
 	private baseBranch: string;
 	private forkStr?: string;

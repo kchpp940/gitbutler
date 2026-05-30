@@ -243,7 +243,7 @@
 						<span class="branch-header__divider">•</span>
 						<div class="branch-header__review-badges">
 							{#if args.prNumber}
-								{@const prQuery = prService?.get(args.prNumber)}
+								{@const prQuery = prService?.get(args.prNumber, { forceRefetch: true })}
 								{@const pr = prQuery?.response}
 								{@const prStatus = (() => {
 									if (!pr) return "unknown";
@@ -261,6 +261,9 @@
 										mergeableState={pr.mergeableState}
 										isFork={pr.fork}
 										isMerged={pr.merged}
+										onrefetch={() => {
+											if (args.prNumber) prService?.fetch(args.prNumber, { forceRefetch: true });
+										}}
 									/>
 								{/if}
 							{/if}

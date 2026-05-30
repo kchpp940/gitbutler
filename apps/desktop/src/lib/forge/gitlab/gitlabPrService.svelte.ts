@@ -1,9 +1,6 @@
-import { injectOptional } from "@gitbutler/core/context";
-import type { QueryActionCreatorResult } from "@reduxjs/toolkit/query";
-import { createSubscriber } from "svelte/reactivity";
 import { gitlab } from "$lib/forge/gitlab/gitlabClient.svelte";
 import { detailedMrToInstance, mrToInstance } from "$lib/forge/gitlab/types";
-import { invalidatesScopedItem, providesScopedItem, ReduxTag, invalidatesScopedList } from "$lib/state/tags";
+import { providesItem, invalidatesItem, ReduxTag, invalidatesList } from "$lib/state/tags";
 import { sleep } from "$lib/utils/sleep";
 import { toSerializable } from "@gitbutler/shared/network/types";
 import { writable } from "svelte/store";
@@ -14,15 +11,11 @@ import type {
 	MergeMethod,
 	PullRequest,
 } from "$lib/forge/interface/types";
-import { getPollingInterval } from "$lib/forge/shared/progressivePolling";
-import {
-	FORGE_SCOPE_SERVICE,
-	type ScopedSubscription,
-} from "$lib/forge/forgeScopeService.svelte";
 import type { BackendApi } from "$lib/state/backendApi";
-import type { QueryExtensions, QueryOptions, ReactiveQuery } from "$lib/state/butlerModule";
+import type { QueryOptions } from "$lib/state/butlerModule";
 import type { GitLabApi } from "$lib/state/clientState.svelte";
 import type { PostHogWrapper } from "$lib/telemetry/posthog";
+import type { StartQueryActionCreatorOptions } from "@reduxjs/toolkit/query";
 
 export class GitLabPrService implements ForgePrService {
 	readonly unit = { name: "Merge request", abbr: "MR", symbol: "!" };
@@ -34,10 +27,9 @@ export class GitLabPrService implements ForgePrService {
 		gitlabApi: GitLabApi,
 		backendApi: BackendApi,
 		private posthog?: PostHogWrapper,
-		private readonly scopeId?: string,
 	) {
-		this.api = injectEndpoints(gitlabApi, scopeId);
-		this.backendApi = injectBackendEndpoints(backendApi, scopeId);
+		this.api = injectEndpoints(gitlabApi);
+		this.backendApi = injectBackendEndpoints(backendApi);
 	}
 
 	async createPr({
@@ -81,55 +73,13 @@ export class GitLabPrService implements ForgePrService {
 		throw lastError;
 	}
 
-	async fetch(number: number) {
-		const result = this.api.endpoints.getPr.fetch({ number });
+	async fetch(number: number, options?: QueryOptions) {
+		const result = this.api.endpoints.getPr.fetch({ number }, options);
 		return await result;
 	}
 
-	get(number: number): ReactiveQuery<DetailedPullRequest, QueryExtensions> {
-		const forgeScopeService = injectOptional(FORGE_SCOPE_SERVICE, undefined);
-		const pollingInterval = 60000;
-
-		let query: QueryActionCreatorResult<any> | undefined;
-
-		const subscription: ScopedSubscription = {
-			scopeId: this.scopeId ?? "",
-			key: `pr:${number}`,
-			stop: () => {
-				query?.unsubscribe();
-			},
-			cancel: () => {
-				query?.abort();
-			},
-		};
-
-		if (forgeScopeService) {
-			forgeScopeService.registerScopedSubscription(subscription);
-		}
-
-		const reactiveQuery = this.api.endpoints.getPr.useQuery({ number }, {
-			subscriptionOptions: { pollingInterval },
-		});
-
-		const subscribe = createSubscriber(() => {
-			query = this.api.endpoints.getPr.subscribe({ number }, {
-				subscriptionOptions: { pollingInterval },
-			});
-			return () => {
-				query?.unsubscribe();
-			};
-		});
-
-		return {
-			get result() {
-				subscribe();
-				return reactiveQuery.result;
-			},
-			get response() {
-				subscribe();
-				return reactiveQuery.response;
-			},
-		};
+	get(number: number, options?: StartQueryActionCreatorOptions) {
+		return this.api.endpoints.getPr.useQuery({ number }, options);
 	}
 
 	async merge(method: MergeMethod, number: number) {
@@ -155,7 +105,7 @@ export class GitLabPrService implements ForgePrService {
 	}
 }
 
-function injectBackendEndpoints(api: BackendApi, scopeId?: string) {
+function injectBackendEndpoints(api: BackendApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			setAutoMergeMR: build.mutation<
@@ -165,21 +115,21 @@ function injectBackendEndpoints(api: BackendApi, scopeId?: string) {
 				extraOptions: { command: "set_review_auto_merge" },
 				query: (args) => args,
 				invalidatesTags: (_res, _err, { reviewId }) => [
-					invalidatesScopedItem(ReduxTag.GitlabMRs, scopeId ?? "", reviewId),
+					invalidatesItem(ReduxTag.GitlabMRs, reviewId),
 				],
 			}),
 			setDraftMR: build.mutation<void, { projectId: string; reviewId: number; draft: boolean }>({
 				extraOptions: { command: "set_review_draftiness" },
 				query: (args) => args,
 				invalidatesTags: (_res, _err, { reviewId }) => [
-					invalidatesScopedItem(ReduxTag.GitlabMRs, scopeId ?? "", reviewId),
+					invalidatesItem(ReduxTag.GitlabMRs, reviewId),
 				],
 			}),
 		}),
 	});
 }
 
-function injectEndpoints(api: GitLabApi, scopeId?: string) {
+function injectEndpoints(api: GitLabApi) {
 	return api.injectEndpoints({
 		endpoints: (build) => ({
 			getPr: build.query<DetailedPullRequest, { number: number }>({
@@ -200,7 +150,7 @@ function injectEndpoints(api: GitLabApi, scopeId?: string) {
 						return { error: toSerializable(e) };
 					}
 				},
-				providesTags: (_result, _error, args) => providesScopedItem(ReduxTag.GitlabMRs, scopeId ?? "", args.number),
+				providesTags: (_result, _error, args) => providesItem(ReduxTag.GitlabMRs, args.number),
 			}),
 			createPr: build.mutation<
 				PullRequest,
@@ -224,7 +174,7 @@ function injectEndpoints(api: GitLabApi, scopeId?: string) {
 						return { error: toSerializable(e) };
 					}
 				},
-				invalidatesTags: (result) => [invalidatesScopedItem(ReduxTag.GitlabMRs, scopeId ?? "", result?.number)],
+				invalidatesTags: (result) => [invalidatesItem(ReduxTag.GitlabMRs, result?.number)],
 			}),
 			mergePr: build.mutation<undefined, { number: number; method: MergeMethod }>({
 				queryFn: async ({ number, method }, query) => {
@@ -244,7 +194,7 @@ function injectEndpoints(api: GitLabApi, scopeId?: string) {
 						return { error: toSerializable(e) };
 					}
 				},
-				invalidatesTags: [invalidatesScopedList(ReduxTag.GitlabMRs, scopeId ?? "")],
+				invalidatesTags: [invalidatesList(ReduxTag.GitlabMRs)],
 			}),
 			updatePr: build.mutation<
 				void,
@@ -269,7 +219,7 @@ function injectEndpoints(api: GitLabApi, scopeId?: string) {
 						return { error: toSerializable(e) };
 					}
 				},
-				invalidatesTags: [invalidatesScopedList(ReduxTag.GitlabMRs, scopeId ?? "")],
+				invalidatesTags: [invalidatesList(ReduxTag.GitlabMRs)],
 			}),
 		}),
 	});

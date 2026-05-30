@@ -1,8 +1,8 @@
 <script lang="ts">
 	import SectionCardDisclaimer from "$components/shared/SectionCardDisclaimer.svelte";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
-	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
 	import { GIT_SERVICE } from "$lib/git/gitService";
+	import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
 	import { inject } from "@gitbutler/core/context";
 	import {
 		Button,
@@ -17,13 +17,12 @@
 
 	const { projectId }: { projectId: string } = $props();
 
-	const gitConfig = inject(GIT_CONFIG_SERVICE);
 	const gitService = inject(GIT_SERVICE);
+	const projectDraftStore = PROJECT_DRAFT_STORE;
 
-	async function setSignCommits(targetState: boolean) {
-		signCommits = targetState;
-		await gitConfig.setGbConfig(projectId, { signCommits: targetState });
-	}
+	const signing = $derived(projectDraftStore.draft.signing);
+	const signCommits = $derived(signing?.signCommits ?? false);
+	const signingFormat = $derived(signing?.signingFormat ?? "openpgp");
 
 	const signingFormatOptions = [
 		{
@@ -45,6 +44,12 @@
 	);
 	const keyPlaceholder = $derived(selectedOption?.keyPlaceholder);
 	const programPlaceholder = $derived(selectedOption?.programPlaceholder);
+
+	const signingProgram = $derived(
+		signingFormat === "openpgp"
+			? (signing?.gpgProgram ?? "")
+			: (signing?.gpgSshProgram ?? ""),
+	);
 
 	let checked = $state(false);
 	let loading = $state(true);
@@ -68,27 +73,25 @@
 		loading = false;
 	}
 
-	async function updateSigningInfo() {
-		let signUpdate = {
-			signingFormat: signingFormat,
-			signingKey: signingKey,
-			gpgProgram: signingFormat === "openpgp" ? signingProgram : "",
-			gpgSshProgram: signingFormat === "ssh" ? signingProgram : "",
-		};
-		await gitConfig.setGbConfig(projectId, signUpdate);
+	function setSignCommits(targetState: boolean) {
+		projectDraftStore.updateSigningSettings(projectId, { signCommits: targetState });
 	}
 
-	const gbConfig = $derived(gitConfig.gbConfig(projectId));
-	let signCommits = $derived(gbConfig.response?.signCommits ?? false);
-	let signingFormat = $derived(gbConfig.response?.signingFormat ?? "openpgp");
-	let signingKey = $derived(gbConfig.response?.signingKey ?? "");
-	let signingProgram = $derived(
-		gbConfig.response
-			? signingFormat === "openpgp"
-				? (gbConfig.response.gpgProgram ?? "")
-				: (gbConfig.response.gpgSshProgram ?? "")
-			: "",
-	);
+	function updateSigningFormat(format: string) {
+		projectDraftStore.updateSigningSettings(projectId, { signingFormat: format });
+	}
+
+	function updateSigningKey(key: string) {
+		projectDraftStore.updateSigningSettings(projectId, { signingKey: key });
+	}
+
+	function updateSigningProgram(program: string) {
+		if (signingFormat === "openpgp") {
+			projectDraftStore.updateSigningSettings(projectId, { gpgProgram: program });
+		} else {
+			projectDraftStore.updateSigningSettings(projectId, { gpgSshProgram: program });
+		}
+	}
 
 	async function handleSignCommitsClick(event: MouseEvent) {
 		await setSignCommits((event.target as HTMLInputElement)?.checked);
@@ -120,10 +123,7 @@
 					options={signingFormatOptions}
 					wide
 					label="Signing format"
-					onselect={(value: string) => {
-						signingFormat = value;
-						updateSigningInfo();
-					}}
+					onselect={(value: string) => updateSigningFormat(value)}
 				>
 					{#snippet itemSnippet({ item, highlighted })}
 						<SelectItem selected={item.value === signingFormat} {highlighted}>
@@ -134,16 +134,16 @@
 
 				<Textbox
 					label="Signing key"
-					bind:value={signingKey}
+					value={signing?.signingKey ?? ""}
 					required
-					onchange={updateSigningInfo}
+					onchange={(value: string) => updateSigningKey(value)}
 					placeholder={keyPlaceholder}
 				/>
 
 				<Textbox
 					label="Signing program (optional)"
-					bind:value={signingProgram}
-					onchange={updateSigningInfo}
+					value={signingProgram}
+					onchange={(value: string) => updateSigningProgram(value)}
 					placeholder={programPlaceholder}
 				/>
 

@@ -5,6 +5,7 @@ import type {
 	PullRequest,
 } from "$lib/forge/interface/types";
 import type { ReactiveQuery } from "$lib/state/butlerModule";
+import type { StartQueryActionCreatorOptions } from "@reduxjs/toolkit/query";
 import type { Writable } from "svelte/store";
 
 export type ReviewUnitInfo = {
@@ -16,8 +17,14 @@ export type ReviewUnitInfo = {
 export interface ForgePrService {
 	readonly unit: ReviewUnitInfo;
 	loading: Writable<boolean>;
-	get(prNumber: number): ReactiveQuery<DetailedPullRequest>;
-	fetch(prNumber: number): Promise<DetailedPullRequest | undefined>;
+	get(
+		prNumber: number,
+		options?: StartQueryActionCreatorOptions,
+	): ReactiveQuery<DetailedPullRequest>;
+	fetch(
+		prNumber: number,
+		options?: StartQueryActionCreatorOptions,
+	): Promise<DetailedPullRequest | undefined>;
 	createPr({
 		title,
 		body,

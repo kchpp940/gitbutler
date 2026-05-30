@@ -2,7 +2,7 @@
 	import { lastFetched as getLastFetched } from "$lib/baseBranch/baseBranch";
 	import { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 	import { BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
-	import { FORGE_SCOPE_SERVICE } from "$lib/forge/forgeScopeService.svelte";
+	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, TimeAgo, Icon, TestId } from "@gitbutler/ui";
 
@@ -15,8 +15,10 @@
 
 	const baseBranchService = inject(BASE_BRANCH_SERVICE);
 	const branchService = inject(BRANCH_SERVICE);
-	const forgeScopeService = inject(FORGE_SCOPE_SERVICE);
 	const baseBranch = $derived(baseBranchService.baseBranch(projectId));
+
+	const forge = inject(DEFAULT_FORGE_FACTORY);
+	const listingService = $derived(forge.current.listService);
 
 	const lastFetched = $derived(
 		baseBranch.result.data ? getLastFetched(baseBranch.result.data) : undefined,
@@ -41,7 +43,7 @@
 		try {
 			await baseBranchService.fetchFromRemotes(projectId, "modal");
 			await Promise.all([
-				forgeScopeService.refreshPrs(),
+				listingService?.refresh(projectId),
 				baseBranch.result?.refetch(),
 				branchService.refresh(),
 			]);

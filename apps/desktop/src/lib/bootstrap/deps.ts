@@ -21,7 +21,6 @@ import {
 import { FILE_SERVICE, FileService } from "$lib/files/fileService";
 import { ResizeSync, RESIZE_SYNC } from "$lib/floating/resizeSync";
 import { DefaultForgeFactory, DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
-import { ForgeScopeService, FORGE_SCOPE_SERVICE } from "$lib/forge/forgeScopeService.svelte";
 import { GITHUB_CLIENT, GitHubClient } from "$lib/forge/github/githubClient";
 import { GitHubUserService, GITHUB_USER_SERVICE } from "$lib/forge/github/githubUserService.svelte";
 import { GITLAB_CLIENT, GitLabClient } from "$lib/forge/gitlab/gitlabClient.svelte";
@@ -87,6 +86,11 @@ import {
 	type ExternalLinkService,
 } from "@gitbutler/ui/utils/externalLinkService";
 import { IMECompositionHandler, IME_COMPOSITION_HANDLER } from "@gitbutler/ui/utils/imeHandling";
+import { GLOBAL_SETTINGS_LOADER, GlobalSettingsLoader } from "$lib/settings/settingsLoader";
+import { GLOBAL_SETTINGS_SAVER, GlobalSettingsSaver } from "$lib/settings/settingsSaver";
+import { SETTINGS_ORCHESTRATOR, SettingsOrchestrator } from "$lib/settings/settingsOrchestrator";
+import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
+import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
 import type { AppSettings } from "@gitbutler/but-sdk";
 import { PUBLIC_API_BASE_URL } from "$env/static/public";
 
@@ -163,7 +167,7 @@ export function initDependencies(args: {
 	const workingFilesBroadcast = new WorkingFilesBroadcast(backend);
 
 	// ============================================================================
-	// FORGE FACTORY & SCOPE SERVICE
+	// FORGE FACTORY
 	// ============================================================================
 
 	const forgeFactory = new DefaultForgeFactory({
@@ -175,12 +179,6 @@ export function initDependencies(args: {
 		dispatch: clientState.dispatch,
 		posthog,
 	});
-
-	const forgeScopeService = new ForgeScopeService(
-		forgeFactory,
-		clientState.backendApi,
-		clientState.dispatch,
-	);
 
 	// ============================================================================
 	// GIT & VERSION CONTROL
@@ -297,6 +295,33 @@ export function initDependencies(args: {
 		Number(appSettings.ui.checkForUpdatesIntervalInSeconds) * 1000,
 	);
 
+	const globalSettingsLoader = new GlobalSettingsLoader(
+		settingsService,
+		gitConfig,
+		secretsService,
+		userService,
+		uiState,
+		aiService,
+		updaterService,
+	);
+
+	const globalSettingsSaver = new GlobalSettingsSaver(
+		settingsService,
+		gitConfig,
+		secretsService,
+		userService,
+		uiState,
+		updaterService,
+	);
+
+	const settingsOrchestrator = new SettingsOrchestrator(
+		GLOBAL_DRAFT_STORE,
+		PROJECT_DRAFT_STORE,
+		globalSettingsLoader,
+		globalSettingsSaver,
+		uiState,
+	);
+
 	// ============================================================================
 	// UTILITIES
 	// ============================================================================
@@ -327,7 +352,6 @@ export function initDependencies(args: {
 		[COMMIT_ANALYTICS, commitAnalytics],
 		[DATA_SHARING_SERVICE, dataSharingService],
 		[DEFAULT_FORGE_FACTORY, forgeFactory],
-		[FORGE_SCOPE_SERVICE, forgeScopeService],
 		[DEPENDENCY_SERVICE, dependencyService],
 		[DIFF_SERVICE, diffService],
 		[DRAG_STATE_SERVICE, dragStateService],
@@ -360,6 +384,9 @@ export function initDependencies(args: {
 		[SECRET_SERVICE, secretsService],
 		[SETTINGS_SERVICE, settingsService],
 		[TERMINAL_SERVICE, terminalService],
+		[GLOBAL_SETTINGS_LOADER, globalSettingsLoader],
+		[GLOBAL_SETTINGS_SAVER, globalSettingsSaver],
+		[SETTINGS_ORCHESTRATOR, settingsOrchestrator],
 		[SHORTCUT_SERVICE, shortcutService],
 		[STACK_SERVICE, stackService],
 		[REORDER_DROPZONE_FACTORY, reorderDropzoneFactory],

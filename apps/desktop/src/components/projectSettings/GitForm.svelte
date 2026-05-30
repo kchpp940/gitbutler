@@ -2,22 +2,15 @@
 	import CommitSigningForm from "$components/projectSettings/CommitSigningForm.svelte";
 	import GitHooksForm from "$components/projectSettings/GitHooksForm.svelte";
 	import KeysForm from "$components/projectSettings/KeysForm.svelte";
-	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
 	import { BACKEND } from "$lib/backend";
-	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
+	import { PROJECT_DRAFT_STORE } from "$lib/settings/projectDraftStore";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Spacer, Toggle } from "@gitbutler/ui";
-	import type { Project } from "$lib/project/project";
 
 	const { projectId }: { projectId: string } = $props();
-	const projectsService = inject(PROJECTS_SERVICE);
-	const projectQuery = $derived(projectsService.getProject(projectId));
+	const projectDraftStore = PROJECT_DRAFT_STORE;
 	const backend = inject(BACKEND);
-
-	async function onForcePushProtectionClick(project: Project, value: boolean) {
-		await projectsService.updateProject({ ...project, force_push_protection: value });
-	}
 </script>
 
 <SettingsSection>
@@ -29,26 +22,26 @@
 	{/if}
 
 	<Spacer />
-	<ReduxResult {projectId} result={projectQuery.result}>
-		{#snippet children(project)}
-			<CardGroup>
-				<CardGroup.Item labelFor="forcePushProtection">
-					{#snippet title()}
-						Force push protection
-					{/snippet}
-					{#snippet caption()}
-						Protect remote commits during force pushes. This will use Git's safer force push flags
-						to avoid overwriting remote commit history.
-					{/snippet}
-					{#snippet actions()}
-						<Toggle
-							id="forcePushProtection"
-							checked={project.force_push_protection}
-							onchange={(checked) => onForcePushProtectionClick(project, checked)}
-						/>
-					{/snippet}
-				</CardGroup.Item>
-			</CardGroup>
-		{/snippet}
-	</ReduxResult>
+	<CardGroup>
+		<CardGroup.Item labelFor="forcePushProtection">
+			{#snippet title()}
+				Force push protection
+			{/snippet}
+			{#snippet caption()}
+				Protect remote commits during force pushes. This will use Git's safer force push flags to
+				avoid overwriting remote commit history.
+			{/snippet}
+			{#snippet actions()}
+				<Toggle
+					id="forcePushProtection"
+					checked={projectDraftStore.draft.forcePushProtection ?? false}
+					onchange={(checked) => {
+						projectDraftStore.updateGitSettings(projectId, {
+							forcePushProtection: checked,
+						});
+					}}
+				/>
+			{/snippet}
+		</CardGroup.Item>
+	</CardGroup>
 </SettingsSection>

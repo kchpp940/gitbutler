@@ -59,7 +59,6 @@ type GitLabAccess = {
 	isLoading: Reactive<boolean>;
 	error: Reactive<{ code: string; message: string } | undefined>;
 	isError: Reactive<boolean>;
-	preferredAccount: Reactive<GitlabAccountIdentifier | undefined>;
 };
 
 /**
@@ -87,6 +86,5 @@ export function useGitLabAccessToken(projectId: Reactive<string>): GitLabAccess 
 			() => glUserResponse?.result.error as { code: string; message: string } | undefined,
 		),
 		isError: reactive(() => glUserResponse?.result.isError ?? false),
-		preferredAccount: preferredGitLabAccount,
 	};
 }

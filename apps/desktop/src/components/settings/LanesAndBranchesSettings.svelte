@@ -1,19 +1,17 @@
 <script lang="ts">
-	import {
-		autoSelectBranchNameFeature,
-		autoSelectBranchCreationFeature,
-		stagingBehaviorFeature,
-		type StagingBehavior,
-	} from "$lib/config/uiFeatureFlags";
-	import { persisted } from "@gitbutler/shared/persisted";
+	import { GLOBAL_DRAFT_STORE } from "$lib/settings/globalDraftStore";
 	import { CardGroup, RadioButton, Toggle, Spacer } from "@gitbutler/ui";
+	import type { StagingBehavior } from "$lib/settings/settingsDraftStore";
 
-	const addToLeftmost = persisted<boolean>(false, "branch-placement-leftmost");
+	const globalDraftStore = GLOBAL_DRAFT_STORE;
+
+	const lanes = $derived(globalDraftStore.draft.lanes);
+
 	function onStagingBehaviorFormChange(form: HTMLFormElement) {
 		const formData = new FormData(form);
 		const selectedStagingBehavior = formData.get("stagingBehaviorType") as StagingBehavior | null;
 		if (!selectedStagingBehavior) return;
-		stagingBehaviorFeature.set(selectedStagingBehavior);
+		globalDraftStore.updateLanes({ stagingBehavior: selectedStagingBehavior });
 	}
 </script>
 
@@ -28,8 +26,9 @@
 	{#snippet actions()}
 		<Toggle
 			id="add-leftmost"
-			checked={$addToLeftmost}
-			onclick={() => ($addToLeftmost = !$addToLeftmost)}
+			checked={lanes.branchPlacementLeftmost}
+			onclick={() =>
+				globalDraftStore.updateLanes({ branchPlacementLeftmost: !lanes.branchPlacementLeftmost })}
 		/>
 	{/snippet}
 </CardGroup.Item>
@@ -46,8 +45,11 @@
 		{#snippet actions()}
 			<Toggle
 				id="auto-select-creation"
-				checked={$autoSelectBranchCreationFeature}
-				onclick={() => ($autoSelectBranchCreationFeature = !$autoSelectBranchCreationFeature)}
+				checked={lanes.autoSelectBranchCreation}
+				onclick={() =>
+					globalDraftStore.updateLanes({
+						autoSelectBranchCreation: !lanes.autoSelectBranchCreation,
+					})}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -62,8 +64,9 @@
 		{#snippet actions()}
 			<Toggle
 				id="auto-select-rename"
-				checked={$autoSelectBranchNameFeature}
-				onclick={() => ($autoSelectBranchNameFeature = !$autoSelectBranchNameFeature)}
+				checked={lanes.autoSelectBranchName}
+				onclick={() =>
+					globalDraftStore.updateLanes({ autoSelectBranchName: !lanes.autoSelectBranchName })}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -95,7 +98,7 @@
 					name="stagingBehaviorType"
 					value="all"
 					id="stage-all"
-					checked={$stagingBehaviorFeature === "all"}
+					checked={lanes.stagingBehavior === "all"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -113,7 +116,7 @@
 					name="stagingBehaviorType"
 					value="selection"
 					id="stage-selection"
-					checked={$stagingBehaviorFeature === "selection"}
+					checked={lanes.stagingBehavior === "selection"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
@@ -130,7 +133,7 @@
 					name="stagingBehaviorType"
 					value="none"
 					id="stage-none"
-					checked={$stagingBehaviorFeature === "none"}
+					checked={lanes.stagingBehavior === "none"}
 				/>
 			{/snippet}
 		</CardGroup.Item>
