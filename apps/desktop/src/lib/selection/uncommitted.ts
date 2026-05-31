@@ -29,12 +29,6 @@ type UncommittedState = {
 	hunkSelection: EntityState<HunkSelection, string>;
 };
 
-const initialUncommittedState: UncommittedState = {
-	treeChanges: treeChangeAdapter.getInitialState(),
-	hunkAssignments: hunkAssignmentAdapter.getInitialState(),
-	hunkSelection: hunkSelectionAdapter.getInitialState(),
-};
-
 /**
  * State representing uncommitted changes.
  *
@@ -46,7 +40,11 @@ const initialUncommittedState: UncommittedState = {
  */
 export const uncommittedSlice = createSlice({
 	name: "uncommitted",
-	initialState: initialUncommittedState,
+	initialState: {
+		treeChanges: treeChangeAdapter.getInitialState(),
+		hunkAssignments: hunkAssignmentAdapter.getInitialState(),
+		hunkSelection: hunkSelectionAdapter.getInitialState(),
+	} as UncommittedState,
 	reducers: {
 		clearHunkSelection(state, action: PayloadAction<{ stackId: string | null }>) {
 			state.hunkSelection = hunkSelectionAdapter.removeMany(
@@ -323,9 +321,6 @@ export const uncommittedSlice = createSlice({
 				state.hunkSelection,
 				selections.map((s) => s.assignmentId),
 			);
-		},
-		clearAll(): UncommittedState {
-			return initialUncommittedState;
 		},
 	},
 });

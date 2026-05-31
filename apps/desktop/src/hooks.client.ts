@@ -1,15 +1,10 @@
-import { logErrorToFile } from "$lib/backend";
-import { logError, setLogErrorToFile } from "$lib/error/logError";
 import { polyfillAbortSignalTimeout } from "$lib/polyfills/abortSignal";
+import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
+import { showErrorFromDiagnostic } from "$lib/error/showError";
 import type { HandleClientError } from "@sveltejs/kit";
 
-// Apply polyfills before any code runs
 polyfillAbortSignalTimeout();
 
-// Wire up backend file logger for error handling.
-setLogErrorToFile(logErrorToFile);
-
-// SvelteKit error handler.
 export function handleError({
 	error,
 	status,
@@ -18,15 +13,17 @@ export function handleError({
 	status: number;
 }): ReturnType<HandleClientError> {
 	if (status !== 404) {
-		logError(error);
+		const event = fromUnknown("svelte:error", error, { context: { status } });
+		emitDiagnostic(event);
+		showErrorFromDiagnostic(event);
 	}
 	return {
 		message: String(error),
 	};
 }
 
-// Handler for unhandled errors inside promises.
 window.onunhandledrejection = (e: PromiseRejectionEvent) => {
-	e.preventDefault(); // Suppresses default console logger.
-	logError(e);
+	e.preventDefault();
+	const event = fromUnknown("unhandled:rejection", e.reason, { skipToast: true });
+	emitDiagnostic(event);
 };

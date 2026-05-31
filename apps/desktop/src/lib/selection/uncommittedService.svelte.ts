@@ -14,7 +14,7 @@ import {
 	type CheckboxStatus,
 	uncommittedActions,
 } from "$lib/selection/uncommitted";
-import { InjectionToken, type ProjectScopedService } from "@gitbutler/core/context";
+import { InjectionToken } from "@gitbutler/core/context";
 import { reactive } from "@gitbutler/shared/reactiveUtils.svelte";
 import { type Reactive } from "@gitbutler/shared/storeUtils";
 import { isDefined } from "@gitbutler/ui/utils/typeguards";
@@ -48,7 +48,7 @@ interface PartialPreprocessedHunkHeader extends BasePreprocessedHunkHeader {
 
 type PreprocessedHunkHeader = CompletePreprocessedHunkHeader | PartialPreprocessedHunkHeader;
 
-export class UncommittedService implements ProjectScopedService {
+export class UncommittedService {
 	/** The change selection slice of the full redux state. */
 	private state = $state.raw(uncommittedSlice.getInitialState());
 	private dispatch: AppDispatch;
@@ -64,14 +64,6 @@ export class UncommittedService implements ProjectScopedService {
 		$effect(() => {
 			this.state = getSlice() ?? uncommittedSlice.getInitialState();
 		});
-	}
-
-	async onProjectChange(_projectId: string | undefined): Promise<void> {
-		this.reset();
-	}
-
-	reset(): void {
-		this.dispatch(uncommittedActions.clearAll());
 	}
 
 	updateData(args: { assignments: HunkAssignment[]; changes: TreeChange[] }) {

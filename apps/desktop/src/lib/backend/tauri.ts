@@ -1,4 +1,4 @@
-import { isReduxError } from "$lib/error/reduxError";
+import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
 import { getName, getVersion, getVersion as tauriGetVersion } from "@tauri-apps/api/app";
 import { invoke as invokeTauri } from "@tauri-apps/api/core";
 import { documentDir as documentDirTauri } from "@tauri-apps/api/path";
@@ -219,27 +219,14 @@ async function tauriGetAppInfo(): Promise<AppInfo> {
 }
 
 async function tauriInvoke<T>(command: string, params: Record<string, unknown> = {}): Promise<T> {
-	// This commented out code can be used to delay/reject an api call
-	// return new Promise<T>((resolve, reject) => {
-	// 	if (command.startsWith('apply')) {
-	// 		setTimeout(() => {
-	// 			reject('testing the error page');
-	// 		}, 500);
-	// 	} else {
-	// 		resolve(invokeTauri<T>(command, params));
-	// 	}
-	// }).catch((reason) => {
-	// 	const userError = UserError.fromError(reason);
-	// 	console.error(`ipc->${command}: ${JSON.stringify(params)}`, userError);
-	// 	throw userError;
-	// });
-
 	try {
 		return await invokeTauri<T>(command, params);
 	} catch (error: unknown) {
-		if (isReduxError(error)) {
-			console.error(`ipc->${command}: ${JSON.stringify(params)}`, error);
-		}
+		const event = fromUnknown("tauri:command", error, {
+			title: `IPC error: ${command}`,
+			context: { command, params },
+		});
+		emitDiagnostic(event);
 		throw error;
 	}
 }

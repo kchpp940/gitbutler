@@ -1,4 +1,5 @@
-import { isReduxError } from "$lib/error/reduxError";
+import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
+import { isReduxError } from "$lib/diagnostics/service";
 import { getCookie } from "$lib/utils/cookies";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { readable } from "svelte/store";
@@ -71,7 +72,10 @@ class WebDiskStore implements DiskStore {
 			const parsed = fromCookie ? (JSON.parse(fromCookie) as T) : undefined;
 			return parsed ?? defaultValue;
 		} catch (error) {
-			console.error("Error parsing disk store value from cookie", error);
+			const event = fromUnknown("frontend:service", error, {
+				context: { key },
+			});
+			emitDiagnostic(event);
 			return defaultValue;
 		}
 	}
@@ -196,14 +200,20 @@ async function webInvoke<T>(command: string, params: Record<string, unknown> = {
 		if (out.type === "success") {
 			return out.subject;
 		} else {
-			if (isReduxError(out.subject)) {
-				console.error(`ipc->${command}: ${JSON.stringify(params)}`, out.subject);
-			}
+			const event = fromUnknown("tauri:command", out.subject, {
+				title: `IPC error: ${command}`,
+				context: { command, params },
+			});
+			emitDiagnostic(event);
 			throw out.subject;
 		}
 	} catch (error: unknown) {
 		if (isReduxError(error)) {
-			console.error(`ipc->${command}: ${JSON.stringify(params)}`, error);
+			const event = fromUnknown("tauri:command", error, {
+				title: `IPC error: ${command}`,
+				context: { command, params },
+			});
+			emitDiagnostic(event);
 		}
 		throw error;
 	}

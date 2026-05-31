@@ -2,11 +2,7 @@ import { createBackendApi, type BackendApi } from "$lib/state/backendApi";
 import { butlerModule } from "$lib/state/butlerModule";
 import { ReduxTag } from "$lib/state/tags";
 import { uiStateSlice } from "$lib/state/uiState.svelte";
-import {
-	InjectionToken,
-	trackRtkEndpointInjections,
-	type RtkApiType,
-} from "@gitbutler/core/context";
+import { InjectionToken } from "@gitbutler/core/context";
 import { mergeUnlisten } from "@gitbutler/ui/utils/mergeUnlisten";
 import { combineSlices, configureStore, type Slice } from "@reduxjs/toolkit";
 import {
@@ -223,7 +219,7 @@ const FORGE_API_CONFIG = {
 };
 
 export function createGitHubApi(butlerMod: ReturnType<typeof butlerModule>) {
-	const api = buildCreateApi(
+	return buildCreateApi(
 		coreModule(),
 		butlerMod,
 	)({
@@ -231,12 +227,10 @@ export function createGitHubApi(butlerMod: ReturnType<typeof butlerModule>) {
 		// Using fake base query for forge APIs (GitHub/GitLab) since they use queryFn
 		...FORGE_API_CONFIG,
 	});
-
-	return trackRtkEndpointInjections(api, "github");
 }
 
 export function createGitLabApi(butlerMod: ReturnType<typeof butlerModule>) {
-	const api = buildCreateApi(
+	return buildCreateApi(
 		coreModule(),
 		butlerMod,
 	)({
@@ -244,6 +238,4 @@ export function createGitLabApi(butlerMod: ReturnType<typeof butlerModule>) {
 		// Using fake base query for forge APIs (GitHub/GitLab) since they use queryFn
 		...FORGE_API_CONFIG,
 	});
-
-	return trackRtkEndpointInjections(api, "gitlab");
 }

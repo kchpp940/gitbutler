@@ -1,5 +1,7 @@
 import { isStr } from "@gitbutler/ui/utils/string";
 import type { PostHogWrapper } from "$lib/telemetry/posthog";
+import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
+import type { DiagnosticContext } from "$lib/diagnostics/types";
 
 /**
  * Error type that has both a message and a status. These errors are primarily
@@ -126,14 +128,11 @@ function getBestCode(error: unknown): string | undefined {
 }
 
 export function parseQueryError(error: unknown): QueryError {
-	const name = getBestName(error);
-	const message = getBestMessage(error);
-	const code = getBestCode(error);
-
+	const event = fromUnknown("rust:backend", error, { skipToast: true });
 	return {
-		name,
-		message,
-		code,
+		name: event.title,
+		message: event.message,
+		code: event.errorCode,
 	};
 }
 
@@ -142,19 +141,31 @@ export function emitQueryError(
 	error: unknown,
 	context?: { command?: string; actionName?: string },
 ) {
-	const { name, message, code } = parseQueryError(error);
-	if (name === "SilentError") {
-		console.warn("SilentError suppressed from query:error telemetry", error);
+	const diagnosticContext: DiagnosticContext = {
+		command: context?.command,
+		actionName: context?.actionName,
+	};
+	const event = fromUnknown("rust:backend", error, {
+		context: diagnosticContext,
+		skipToast: true,
+	});
+
+	if (event.silent) {
 		return;
 	}
 	if (!posthog) return;
-	const key = `${context?.command ?? ""}|${name}`;
+
+	emitDiagnostic(event);
+
+	const key = `${context?.command ?? ""}|${event.title}`;
 	if (!shouldCaptureQueryError(key)) return;
+
 	posthog.capture(QUERY_ERROR_EVENT_NAME, {
-		error_title: name,
-		error_message: message,
-		error_code: code,
+		error_title: event.title,
+		error_message: event.message,
+		error_code: event.errorCode,
 		command: context?.command,
 		actionName: context?.actionName,
+		diagnostic_id: event.id,
 	});
 }
