@@ -16,7 +16,7 @@
 	import SashLayer from "$components/shared/SashLayer.svelte";
 	import StackDragHandle from "$components/stack/StackDragHandle.svelte";
 	import BranchList from "$components/views/BranchList.svelte";
-	import { stagingBehaviorFeature } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createWorktreeSelection, type SelectionId } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
@@ -38,6 +38,8 @@
 
 	const controller = getStackContext();
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const stagingBehaviorFeature = featureFlags.stagingBehaviorFeature;
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const idSelection = inject(FILE_SELECTION_MANAGER);
 

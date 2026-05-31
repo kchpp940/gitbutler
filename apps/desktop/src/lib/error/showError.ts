@@ -1,39 +1,51 @@
 import { persistSwallowGitHubOrgAuthErrors } from "$lib/config/config";
+import {
+	getTitleFromCommonErrorMessage,
+	isBundlingError,
+	isGitHubOrgAuthError,
+	parseError,
+	shouldIgnoreThisError,
+} from "$lib/error/parser";
 import { showToast, type Toast } from "$lib/notifications/toasts";
-import type { DiagnosticEvent } from "$lib/diagnostics/types";
-import { isGitHubOrgAuthError } from "$lib/error/parser";
-import { fromUnknown } from "$lib/diagnostics/service";
 
 type ExtraAction = NonNullable<Toast["extraAction"]>;
 
-export function showErrorFromDiagnostic(event: DiagnosticEvent, extraAction?: ExtraAction, id?: string) {
-	if (event.ignored || event.silent || !event.userVisible) {
+export function showError(title: string, error: unknown, extraAction?: ExtraAction, id?: string) {
+	const { name, message, code, description, ignored } = parseError(error);
+	if (isBundlingError(message)) {
+		console.warn(
+			"You are likely experiencing a dev mode bundling error, " +
+				"try disabling the cache from the network tab and " +
+				"reload the page.",
+		);
 		return;
 	}
+	const commonErrorTitle = getTitleFromCommonErrorMessage(message);
+	const actualTitle = name || commonErrorTitle || title;
+	const shouldIgnoreThisSpecificError = shouldIgnoreThisError(actualTitle);
 
-	const offerToIgnore = isGitHubOrgAuthError(event.title);
-	const actualExtraAction =
-		extraAction ??
-		(offerToIgnore
-			? {
-					label: "Don't show this again",
-					onClick: () => {
-						persistSwallowGitHubOrgAuthErrors(true);
-					},
-				}
-			: undefined);
+	if (!ignored && !shouldIgnoreThisSpecificError) {
+		const offerToIgnore = isGitHubOrgAuthError(actualTitle);
+		const actualExtraAction =
+			extraAction ??
+			(offerToIgnore
+				? {
+						label: "Don't show this again",
+						onClick: () => {
+							persistSwallowGitHubOrgAuthErrors(true);
+						},
+					}
+				: undefined);
 
-	showToast({
-		id,
-		title: event.title,
-		message: event.description,
-		error: event.message,
-		style: event.level === "warn" ? "warning" : "danger",
-		extraAction: actualExtraAction,
-	});
-}
+		const isWarn = code === "PreconditionFailed";
 
-export function showError(title: string, error: unknown, extraAction?: ExtraAction, id?: string) {
-	const event = fromUnknown("svelte:error", error, { title, skipToast: true });
-	showErrorFromDiagnostic(event, extraAction, id);
+		showToast({
+			id,
+			title: actualTitle,
+			message: description,
+			error: message,
+			style: isWarn ? "warning" : "danger",
+			extraAction: actualExtraAction,
+		});
+	}
 }

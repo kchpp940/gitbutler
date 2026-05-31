@@ -2,7 +2,7 @@
 	import { CLIPBOARD_SERVICE } from "$lib/backend/clipboard";
 	import { commitCreatedAtDate } from "$lib/branches/v3";
 	import { splitMessage } from "$lib/commits/commitMessage";
-	import { rewrapCommitMessage } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { UI_STATE } from "$lib/state/uiState.svelte";
 	import { useUserAvatarUrl } from "$lib/user/userAvatar.svelte";
 	import { rejoinParagraphs, truncate } from "$lib/utils/string";
@@ -21,6 +21,8 @@
 	const { commit, rewrap, includeTitle }: Props = $props();
 
 	const uiState = inject(UI_STATE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const rewrapCommitMessage = featureFlags.rewrapCommitMessage;
 	const clipboardService = inject(CLIPBOARD_SERVICE);
 	const userAvatarUrl = useUserAvatarUrl();
 	const zoom = $derived(uiState.global.zoom.current);

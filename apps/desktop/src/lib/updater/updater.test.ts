@@ -1,4 +1,8 @@
 import { type Update } from "$lib/backend";
+import {
+	loadEnvironmentProfile,
+	resetEnvironmentProfile,
+} from "$lib/config/environmentLoader";
 import { ShortcutService } from "$lib/shortcuts/shortcutService";
 import { EventContext } from "$lib/telemetry/eventContext";
 import { PostHogWrapper } from "$lib/telemetry/posthog";
@@ -8,27 +12,28 @@ import { UpdaterService } from "$lib/updater/updater";
 import { get } from "svelte/store";
 import { expect, test, describe, vi, beforeEach, afterEach } from "vitest";
 
-/**
- * It is important to understand the sync `get` method performs a store subscription
- * under the hood.
- */
 describe("Updater", () => {
 	let updater: UpdaterService;
+	let posthog: PostHogWrapper;
 	const backend = mockCreateBackend();
 	const MockSettingsService = getSettingsdServiceMock();
 	const shortcuts = new ShortcutService(backend);
 	const settingsService = new MockSettingsService();
 	const eventContext = new EventContext();
-	const posthog = new PostHogWrapper(settingsService, backend, eventContext);
 	const updateIntervalMs = 3600 * 1000;
 
 	beforeEach(() => {
+		const env = loadEnvironmentProfile();
+		posthog = new PostHogWrapper(settingsService, backend, eventContext, env);
 		vi.useFakeTimers();
-		updater = new UpdaterService(backend, posthog, shortcuts, updateIntervalMs);
+		updater = new UpdaterService(backend, posthog, shortcuts, updateIntervalMs, {
+			disableAutoUpdateChecks: env.persistenceDefaults.disableAutoUpdateChecks,
+		});
 		vi.spyOn(backend, "listen").mockReturnValue(async () => {});
 	});
 
 	afterEach(() => {
+		resetEnvironmentProfile();
 		vi.restoreAllMocks();
 		vi.clearAllTimers();
 	});
@@ -143,9 +148,11 @@ describe("Updater", () => {
 
 	test("should disable updater when updateIntervalMs is 0", async () => {
 		const mock = vi.spyOn(backend, "checkUpdate").mockReturnValue(mockUpdate(null));
+		const env = loadEnvironmentProfile();
 
-		// Create updater with updateIntervalMs = 0
-		const disabledUpdater = new UpdaterService(backend, posthog, shortcuts, 0);
+		const disabledUpdater = new UpdaterService(backend, posthog, shortcuts, 0, {
+			disableAutoUpdateChecks: env.persistenceDefaults.disableAutoUpdateChecks,
+		});
 
 		// Subscribe to the update store (this triggers start())
 		const unsubscribe = disabledUpdater.update.subscribe(() => {});

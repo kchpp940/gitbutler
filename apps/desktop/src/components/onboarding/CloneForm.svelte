@@ -2,7 +2,6 @@
 	import { goto } from "$app/navigation";
 	import SettingsSection from "$components/shared/SettingsSection.svelte";
 	import { BACKEND } from "$lib/backend";
-	import { captureAndEmit } from "$lib/diagnostics";
 	import { parseError } from "$lib/error/parser";
 	import { GIT_SERVICE } from "$lib/git/gitService";
 	import { parseRemoteUrl } from "$lib/git/gitUrl";
@@ -13,6 +12,8 @@
 	import { inject } from "@gitbutler/core/context";
 	import { persisted } from "@gitbutler/shared/persisted";
 	import { Button, InfoMessage, type MessageStyle, Spacer, Textbox } from "@gitbutler/ui";
+
+	import * as Sentry from "@sentry/sveltekit";
 	import { onMount } from "svelte";
 
 	const projectsService = inject(PROJECTS_SERVICE);
@@ -91,9 +92,7 @@
 
 			handleAddProjectOutcome(outcome, (project) => goto(projectPath(project.id)));
 		} catch (e) {
-			captureAndEmit("frontend:service", e, {
-				context: { operation: "cloneProject" },
-			});
+			Sentry.captureException(e);
 			const errorMessage = getErrorMessage(e);
 			posthog.captureOnboarding(OnboardingEvent.ClonedProjectFailed, e);
 			errors.push({

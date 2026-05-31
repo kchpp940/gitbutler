@@ -1,5 +1,6 @@
 import AppUpdater from "$components/shared/AppUpdater.svelte";
 import { type Update } from "$lib/backend";
+import { loadEnvironmentProfile, resetEnvironmentProfile, ENVIRONMENT_PROFILE } from "$lib/config/environmentLoader";
 import { ShortcutService } from "$lib/shortcuts/shortcutService";
 import { EventContext } from "$lib/telemetry/eventContext";
 import { PostHogWrapper } from "$lib/telemetry/posthog";
@@ -11,26 +12,27 @@ import { expect, test, describe, vi, beforeEach, afterEach } from "vitest";
 
 describe("AppUpdater", () => {
 	let updater: UpdaterService;
+	let posthog: PostHogWrapper;
 	let context: Map<any, any>;
 	const backend = mockCreateBackend();
 	const shortcuts = new ShortcutService(backend);
 	const MockSettingsService = getSettingsdServiceMock();
 	const settingsService = new MockSettingsService();
 	const eventContext = new EventContext();
-	const posthog = new PostHogWrapper(settingsService, backend, eventContext);
 
 	beforeEach(() => {
+		resetEnvironmentProfile();
+		const env = loadEnvironmentProfile();
+		posthog = new PostHogWrapper(settingsService, backend, eventContext, env);
 		vi.useFakeTimers();
-		updater = new UpdaterService(backend, posthog, shortcuts, 3600 * 1000);
-		context = new Map([[UPDATER_SERVICE._key, updater]]);
-		vi.spyOn(backend, "listen").mockReturnValue(async () => {});
-		vi.mock("$env/dynamic/public", () => {
-			return {
-				env: {
-					PUBLIC_FLATPAK_ID: undefined,
-				},
-			};
+		updater = new UpdaterService(backend, posthog, shortcuts, 3600 * 1000, {
+			disableAutoUpdateChecks: env.persistenceDefaults.disableAutoUpdateChecks,
 		});
+		context = new Map<any, any>([
+			[UPDATER_SERVICE._key, updater],
+			[ENVIRONMENT_PROFILE._key, env],
+		]);
+		vi.spyOn(backend, "listen").mockReturnValue(async () => {});
 	});
 
 	afterEach(() => {

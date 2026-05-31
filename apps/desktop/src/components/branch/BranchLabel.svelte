@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { autoSelectBranchNameFeature } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
+	import { inject } from "@gitbutler/core/context";
 	import { TestId } from "@gitbutler/ui";
 	import { clickOutside } from "@gitbutler/ui/utils/clickOutside";
 	import { resizeObserver } from "@gitbutler/ui/utils/resizeObserver";
@@ -25,6 +26,9 @@
 		onChange,
 		onDblClick,
 	}: Props = $props();
+
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const autoSelectBranchNameFeature = featureFlags.autoSelectBranchNameFeature;
 
 	let inputEl: HTMLInputElement | undefined = $state();
 	let measureWidth = $state(0);

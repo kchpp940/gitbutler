@@ -1,9 +1,13 @@
+import { logErrorToFileFromProfile } from "$lib/backend";
+import { loadEnvironmentProfile } from "$lib/config/environmentLoader";
+import { initErrorHandling, logError } from "$lib/error/logError";
 import { polyfillAbortSignalTimeout } from "$lib/polyfills/abortSignal";
-import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
-import { showErrorFromDiagnostic } from "$lib/error/showError";
 import type { HandleClientError } from "@sveltejs/kit";
 
 polyfillAbortSignalTimeout();
+
+const profile = loadEnvironmentProfile();
+initErrorHandling(profile, (error) => logErrorToFileFromProfile(profile, error));
 
 export function handleError({
 	error,
@@ -13,9 +17,7 @@ export function handleError({
 	status: number;
 }): ReturnType<HandleClientError> {
 	if (status !== 404) {
-		const event = fromUnknown("svelte:error", error, { context: { status } });
-		emitDiagnostic(event);
-		showErrorFromDiagnostic(event);
+		logError(error);
 	}
 	return {
 		message: String(error),
@@ -24,6 +26,5 @@ export function handleError({
 
 window.onunhandledrejection = (e: PromiseRejectionEvent) => {
 	e.preventDefault();
-	const event = fromUnknown("unhandled:rejection", e.reason, { skipToast: true });
-	emitDiagnostic(event);
+	logError(e);
 };

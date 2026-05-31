@@ -1,10 +1,10 @@
 <script lang="ts">
 	import AppScrollableContainer from "$components/shared/AppScrollableContainer.svelte";
+	import { ENVIRONMENT_PROFILE } from "$lib/config/environmentLoader";
 	import { UPDATER_SERVICE, type InstallStatus } from "$lib/updater/updater";
 	import { inject } from "@gitbutler/core/context";
 	import { Button, Modal, Markdown } from "@gitbutler/ui";
 	import { fade } from "svelte/transition";
-	import { env } from "$env/dynamic/public";
 
 	interface Release {
 		version: string;
@@ -13,6 +13,7 @@
 	}
 
 	const updaterService = inject(UPDATER_SERVICE);
+	const env = inject(ENVIRONMENT_PROFILE);
 	const update = updaterService.update;
 	const loading = updaterService.loading;
 
@@ -84,7 +85,7 @@
 		updaterService.dismiss();
 	}
 
-	const inFlatpak = $derived(!!env.PUBLIC_FLATPAK_ID);
+	const inFlatpak = $derived(env.flatpakId !== undefined && env.flatpakId !== "");
 </script>
 
 {#snippet previousVersionSnippet()}

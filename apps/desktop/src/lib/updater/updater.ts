@@ -36,16 +36,8 @@ const downloadStatusMap: { [K in DownloadEventName]: InstallStatus } = {
 	Finished: "Downloaded",
 };
 
-/**
- * Note that the Tauri API `checkUpdate` hangs indefinitely in dev mode, build
- * a nightly if you want to test the updater manually.
- *
- * export TAURI_SIGNING_PRIVATE_KEY=doesnot
- * export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=matter
- * ./scripts/release.sh --channel nightly --version "0.5.678"
- */
 export class UpdaterService {
-	readonly disableAutoChecks = persisted(false, "disableAutoUpdateChecks");
+	readonly disableAutoChecks;
 	readonly loading = writable(false);
 	readonly update = writable<UpdateStatus>({}, () => {
 		this.start();
@@ -68,7 +60,10 @@ export class UpdaterService {
 		private posthog: PostHogWrapper,
 		private shortcuts: ShortcutService,
 		private updateIntervalMs: number,
-	) {}
+		defaults: { disableAutoUpdateChecks: boolean },
+	) {
+		this.disableAutoChecks = persisted(defaults.disableAutoUpdateChecks, "disableAutoUpdateChecks");
+	}
 
 	private async start() {
 		// This shortcut registration is never unsubscribed, but that's likely

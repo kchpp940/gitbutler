@@ -1,22 +1,33 @@
 import { DefaultForgeFactory } from "$lib/forge/forgeFactory.svelte";
 import { GitHub } from "$lib/forge/github/github";
 import { GitLab } from "$lib/forge/gitlab/gitlab";
+import { loadEnvironmentProfile, resetEnvironmentProfile } from "$lib/config/environmentLoader";
 import { type AppDispatch, type GitHubApi, type GitLabApi } from "$lib/state/clientState.svelte";
 import { EventContext } from "$lib/telemetry/eventContext";
 import { PostHogWrapper } from "$lib/telemetry/posthog";
 import { mockCreateBackend } from "$lib/testing/mockBackend";
 import { getSettingsdServiceMock } from "$lib/testing/mockSettingsdService";
-import { expect, test, describe, vi } from "vitest";
+import { expect, test, describe, vi, beforeAll, afterAll } from "vitest";
 import type { GitHubClient } from "$lib/forge/github/githubClient";
 import type { GitLabClient } from "$lib/forge/gitlab/gitlabClient.svelte";
 import type { BackendApi } from "$lib/state/backendApi";
 
 describe.concurrent("DefaultforgeFactory", () => {
+	let env: ReturnType<typeof loadEnvironmentProfile>;
+	let posthog: PostHogWrapper;
+
+	beforeAll(() => {
+		env = loadEnvironmentProfile();
+		posthog = new PostHogWrapper(settingsService, backend, eventContext, env);
+	});
+
+	afterAll(() => {
+		resetEnvironmentProfile();
+	});
 	const MockSettingsService = getSettingsdServiceMock();
 	const backend = mockCreateBackend();
 	const settingsService = new MockSettingsService();
 	const eventContext = new EventContext();
-	const posthog = new PostHogWrapper(settingsService, backend, eventContext);
 	const gitHubApi = {
 		endpoints: {},
 		reducerPath: "github",
@@ -43,6 +54,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			forgeConfig: env.forge,
 		});
 		expect(
 			factory.build({
@@ -67,6 +79,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			forgeConfig: env.forge,
 		});
 		expect(
 			factory.build({
@@ -91,6 +104,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			forgeConfig: env.forge,
 		});
 		expect(
 			factory.build({
@@ -115,6 +129,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			forgeConfig: env.forge,
 		});
 		const result = factory.build({
 			repo: {
@@ -138,6 +153,7 @@ describe.concurrent("DefaultforgeFactory", () => {
 			gitLabApi,
 			posthog,
 			dispatch,
+			forgeConfig: env.forge,
 		});
 		const result = factory.build({
 			repo: {

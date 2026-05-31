@@ -1,4 +1,3 @@
-import { platformPathSeparator } from "$lib/backend";
 import { createEntityAdapter } from "@reduxjs/toolkit";
 import type { HunkAssignment, HunkHeader } from "@gitbutler/but-sdk";
 import type { TreeChange } from "@gitbutler/but-sdk";
@@ -38,8 +37,7 @@ export function partialKey(stackId: string | null, path?: string) {
 /**
  * Creates a prefix key for matching directories.
  */
-export function prefixKey(stackId: string | null, path: string) {
-	const separator = platformPathSeparator();
+export function prefixKey(stackId: string | null, path: string, separator: string = "/") {
 	return stackId + UNIT_SEP + path + separator;
 }
 

@@ -1,4 +1,4 @@
-import { autoSelectBranchNameFeature, stagingBehaviorFeature } from "$lib/config/uiFeatureFlags";
+import { type UIFeatureFlagsService } from "$lib/config/uiFeatureFlagsService.svelte";
 import { getFilterCountMap, getStackTargetTypeCountMap, type WorkspaceRule } from "$lib/rules/rule";
 import { StackService } from "$lib/stacks/stackService.svelte";
 import { UiState } from "$lib/state/uiState.svelte";
@@ -23,6 +23,7 @@ export class CommitAnalytics {
 		private rulesService: RulesService,
 		private fModeManager: FModeManager,
 		private projectsService: ProjectsService,
+		private featureFlags: UIFeatureFlagsService,
 	) {}
 
 	async getCommitProperties(args: {
@@ -191,9 +192,8 @@ export class CommitAnalytics {
 	}
 
 	private getBehaviorMetrics(): EventProperties {
-		// Placeholder for future behavior metrics
-		const stagingBehavior = get(stagingBehaviorFeature);
-		const autoSelectBranchName = get(autoSelectBranchNameFeature);
+		const stagingBehavior = get(this.featureFlags.stagingBehaviorFeature);
+		const autoSelectBranchName = get(this.featureFlags.autoSelectBranchNameFeature);
 		const behaviorMetrics = {
 			stagingBehavior,
 			autoSelectBranchName,

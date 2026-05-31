@@ -1,8 +1,8 @@
-import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
-import { isReduxError } from "$lib/diagnostics/service";
+import { isReduxError } from "$lib/error/reduxError";
 import { getCookie } from "$lib/utils/cookies";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { readable } from "svelte/store";
+import type { EnvironmentProfile } from "$lib/config/environmentProfile";
 import type {
 	AppInfo,
 	DiskStore,
@@ -11,6 +11,8 @@ import type {
 	OpenDialogReturn,
 } from "$lib/backend/backend";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+
+let _profile: EnvironmentProfile | undefined;
 
 export default class Web implements IBackend {
 	platformName = "web";
@@ -28,6 +30,10 @@ export default class Web implements IBackend {
 	getAppInfo = webGetAppInfo;
 	readTextFromClipboard = webReadTextFromClipboard;
 	writeTextToClipboard = webWriteTextToClipboard;
+
+	constructor(profile: EnvironmentProfile) {
+		_profile = profile;
+	}
 	async filePicker<T extends OpenDialogOptions>(options?: T): Promise<OpenDialogReturn<T>> {
 		return await webFilePicker<T>(options);
 	}
@@ -72,10 +78,7 @@ class WebDiskStore implements DiskStore {
 			const parsed = fromCookie ? (JSON.parse(fromCookie) as T) : undefined;
 			return parsed ?? defaultValue;
 		} catch (error) {
-			const event = fromUnknown("frontend:service", error, {
-				context: { key },
-			});
-			emitDiagnostic(event);
+			console.error("Error parsing disk store value from cookie", error);
 			return defaultValue;
 		}
 	}
@@ -200,20 +203,14 @@ async function webInvoke<T>(command: string, params: Record<string, unknown> = {
 		if (out.type === "success") {
 			return out.subject;
 		} else {
-			const event = fromUnknown("tauri:command", out.subject, {
-				title: `IPC error: ${command}`,
-				context: { command, params },
-			});
-			emitDiagnostic(event);
+			if (isReduxError(out.subject)) {
+				console.error(`ipc->${command}: ${JSON.stringify(params)}`, out.subject);
+			}
 			throw out.subject;
 		}
 	} catch (error: unknown) {
 		if (isReduxError(error)) {
-			const event = fromUnknown("tauri:command", error, {
-				title: `IPC error: ${command}`,
-				context: { command, params },
-			});
-			emitDiagnostic(event);
+			console.error(`ipc->${command}: ${JSON.stringify(params)}`, error);
 		}
 		throw error;
 	}
@@ -296,27 +293,24 @@ class WebListener {
 	}
 }
 
-/**
- * Returns the base URL for API calls (without trailing slash).
- *
- * Resolution order:
- * 1. `VITE_BUTLER_API_BASE_URL` — build-time env var (e.g. `http://localhost:6978`)
- * 2. Cookies (`butlerHost`, `butlerPort`) — runtime overrides used by e2e tests
- *    to direct each parallel worker to its own but-server instance.
- * 3. `VITE_BUTLER_HOST` + `VITE_BUTLER_PORT` — legacy host/port env vars
- * 4. `` — empty string (same origin, no prefix).
- */
 export function getApiBaseUrl(): string {
-	const base = import.meta.env.VITE_BUTLER_API_BASE_URL;
-	if (base) return base.replace(/\/$/, "");
+	if (!_profile) {
+		throw new Error("Web backend profile not set. Construct Web with a profile first.");
+	}
 
 	const cookieHost = getCookie("butlerHost");
 	const cookiePort = getCookie("butlerPort");
-	const host = cookieHost || import.meta.env.VITE_BUTLER_HOST;
-	const port = cookiePort || import.meta.env.VITE_BUTLER_PORT;
-	if (host && port) {
-		const protocol = "http";
-		return `${protocol}://${host}:${port}`;
+	if (cookieHost && cookiePort) {
+		return `http://${cookieHost}:${cookiePort}`;
+	}
+
+	const base = _profile.api.butlerApiBaseUrl;
+	if (base) {
+		return base.replace(/\/$/, "");
+	}
+
+	if (_profile.api.butlerHost && _profile.api.butlerPort) {
+		return `http://${_profile.api.butlerHost}:${_profile.api.butlerPort}`;
 	}
 
 	return "";

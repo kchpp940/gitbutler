@@ -5,7 +5,7 @@ import type { IBackend } from "$lib/backend";
 import type { RepoInfo } from "$lib/git/gitUrl";
 import type { SettingsService } from "$lib/settings/appSettings";
 import type { EventContext } from "$lib/telemetry/eventContext";
-import { PUBLIC_POSTHOG_API_KEY } from "$env/static/public";
+import type { EnvironmentProfile } from "$lib/config/environmentProfile";
 
 export const POSTHOG_WRAPPER = new InjectionToken<PostHogWrapper>("PostHogWrapper");
 
@@ -16,6 +16,7 @@ export class PostHogWrapper {
 		private settingsService: SettingsService,
 		private backend: IBackend,
 		private eventContext: EventContext,
+		private profile: EnvironmentProfile,
 	) {}
 
 	capture(eventName: string, properties?: Properties) {
@@ -49,12 +50,19 @@ export class PostHogWrapper {
 
 	async init() {
 		if (this._instance) return;
+
+		const posthogConfig = this.profile.analytics.posthog;
+
+		if (!posthogConfig.enabled || !posthogConfig.apiKey) {
+			return;
+		}
+
 		const appInfo = await this.backend.getAppInfo();
-		this._instance = posthog.init(PUBLIC_POSTHOG_API_KEY, {
-			api_host: "https://eu.posthog.com",
-			autocapture: false,
-			disable_session_recording: true,
-			capture_performance: false,
+		this._instance = posthog.init(posthogConfig.apiKey, {
+			api_host: posthogConfig.apiHost,
+			autocapture: posthogConfig.autoCapture,
+			disable_session_recording: !posthogConfig.sessionRecording,
+			capture_performance: posthogConfig.capturePerformance,
 			request_batching: true,
 			persistence: "localStorage",
 			on_xhr_error: (e) => {

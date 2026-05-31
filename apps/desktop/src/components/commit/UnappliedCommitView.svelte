@@ -3,7 +3,7 @@
 	import CommitTitle from "$components/commit/CommitTitle.svelte";
 	import Drawer from "$components/shared/Drawer.svelte";
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
-	import { rewrapCommitMessage } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
 
@@ -16,6 +16,8 @@
 	const { projectId, commitId, onclose }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const rewrapCommitMessage = featureFlags.rewrapCommitMessage;
 	const commitQuery = $derived(stackService.commitDetails(projectId, commitId));
 </script>
 

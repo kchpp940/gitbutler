@@ -11,6 +11,8 @@ import URLService, { URL_SERVICE } from "$lib/backend/url";
 import BaseBranchService, { BASE_BRANCH_SERVICE } from "$lib/baseBranch/baseBranchService.svelte";
 import { BranchService, BRANCH_SERVICE } from "$lib/branches/branchService.svelte";
 import CLIManager, { CLI_MANAGER } from "$lib/config/cli";
+import { ENVIRONMENT_PROFILE, getEnvironmentProfile } from "$lib/config/environmentLoader";
+import { UI_FEATURE_FLAGS, UIFeatureFlagsService } from "$lib/config/uiFeatureFlagsService.svelte";
 import { GIT_CONFIG_SERVICE, GitConfigService } from "$lib/config/gitConfigService";
 import DependencyService, { DEPENDENCY_SERVICE } from "$lib/dependencies/dependencyService.svelte";
 import { DropzoneRegistry, DROPZONE_REGISTRY } from "$lib/dragging/registry";
@@ -18,7 +20,6 @@ import {
 	REORDER_DROPZONE_FACTORY,
 	ReorderDropzoneFactory,
 } from "$lib/dragging/stackingReorderDropzoneManager";
-import { initDiagnosticSinks } from "$lib/diagnostics/sinks";
 import { FILE_SERVICE, FileService } from "$lib/files/fileService";
 import { ResizeSync, RESIZE_SYNC } from "$lib/floating/resizeSync";
 import { DefaultForgeFactory, DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
@@ -88,7 +89,6 @@ import {
 } from "@gitbutler/ui/utils/externalLinkService";
 import { IMECompositionHandler, IME_COMPOSITION_HANDLER } from "@gitbutler/ui/utils/imeHandling";
 import type { AppSettings } from "@gitbutler/but-sdk";
-import { PUBLIC_API_BASE_URL } from "$env/static/public";
 
 export function initDependencies(args: {
 	backend: IBackend;
@@ -101,28 +101,19 @@ export function initDependencies(args: {
 	const { backend, settingsService, appSettings, homeDir, posthog, eventContext } = args;
 
 	// ============================================================================
-	// DIAGNOSTICS - Error and logging pipeline (MUST come first, before any error can happen)
-	// ============================================================================
-
-	initDiagnosticSinks(posthog);
-
-	// ============================================================================
 	// FOUNDATION LAYER - Core services that others depend on
 	// ============================================================================
 
 	const appState = new AppState();
 
 	// ============================================================================
-	// ANALYTICS & TELEMETRY
+	// ENVIRONMENT CONFIGURATION - Must initialize before any service reads config
 	// ============================================================================
 
-	// ============================================================================
-	// AUTHENTICATION & SECURITY
-	// ============================================================================
-
+	const env = getEnvironmentProfile();
 	const secretsService = new RustSecretService(backend);
 	const tokenMemoryService = new TokenMemoryService();
-	const httpClient = new HttpClient(window.fetch, PUBLIC_API_BASE_URL, tokenMemoryService.token);
+	const httpClient = new HttpClient(window.fetch, env.api.baseUrl, tokenMemoryService.token);
 
 	// ============================================================================
 	// FORGE CLIENTS & INTEGRATIONS
@@ -151,6 +142,7 @@ export function initDependencies(args: {
 	const projectsService = new ProjectsService(clientState.backendApi, homeDir, backend);
 	const gitConfig = new GitConfigService(clientState.backendApi, clientState.dispatch, backend);
 	const terminalService = new TerminalService(backend);
+	const uiFeatureFlags = new UIFeatureFlagsService(env);
 
 	// ============================================================================
 	// AI SERVICES
@@ -180,6 +172,7 @@ export function initDependencies(args: {
 		gitLabApi: clientState.gitlabApi,
 		dispatch: clientState.dispatch,
 		posthog,
+		forgeConfig: env.forge,
 	});
 
 	// ============================================================================
@@ -229,6 +222,7 @@ export function initDependencies(args: {
 		rulesService,
 		fModeManager,
 		projectsService,
+		uiFeatureFlags,
 	);
 	// ============================================================================
 	// SELECTION & EDITING
@@ -290,12 +284,12 @@ export function initDependencies(args: {
 	const cliManager = new CLIManager(clientState.backendApi);
 	const dataSharingService = new DataSharingService(clientState.backendApi);
 	const promptService = new PromptService(backend);
-	const updaterService = new UpdaterService(
-		backend,
-		posthog,
-		shortcutService,
-		Number(appSettings.ui.checkForUpdatesIntervalInSeconds) * 1000,
-	);
+	const updateIntervalMs = env.updates.enabled
+		? Number(appSettings.ui.checkForUpdatesIntervalInSeconds) * 1000
+		: 0;
+	const updaterService = new UpdaterService(backend, posthog, shortcutService, updateIntervalMs, {
+		disableAutoUpdateChecks: env.persistenceDefaults.disableAutoUpdateChecks,
+	});
 
 	// ============================================================================
 	// UTILITIES
@@ -331,6 +325,8 @@ export function initDependencies(args: {
 		[DIFF_SERVICE, diffService],
 		[DRAG_STATE_SERVICE, dragStateService],
 		[DROPZONE_REGISTRY, dropzoneRegistry],
+		[ENVIRONMENT_PROFILE, env],
+		[UI_FEATURE_FLAGS, uiFeatureFlags],
 		[EVENT_CONTEXT, eventContext],
 		[FEED_SERVICE, feedService],
 		[FILE_SERVICE, fileService],

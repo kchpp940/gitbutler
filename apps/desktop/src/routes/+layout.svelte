@@ -2,7 +2,7 @@
 	import "@gitbutler/design-core/utility";
 	import "@gitbutler/design-core/core";
 	import "../styles/styles.css";
-	import { browser, dev } from "$app/environment";
+	import { browser } from "$app/environment";
 	import { afterNavigate, beforeNavigate } from "$app/navigation";
 	import { page } from "$app/state";
 	import GlobalSettingsShortcutHandler from "$components/settings/GlobalSettingsShortcutHandler.svelte";
@@ -18,8 +18,9 @@
 	import ToastController from "$components/shared/ToastController.svelte";
 	import GlobalModalRouter from "$components/views/GlobalModalRouter.svelte";
 	import { initDependencies } from "$lib/bootstrap/deps";
+	import { ENVIRONMENT_PROFILE } from "$lib/config/environmentLoader";
 	import { GIT_CONFIG_SERVICE } from "$lib/config/gitConfigService";
-	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { PROJECTS_SERVICE } from "$lib/project/projectsService";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { TERMINAL_SERVICE } from "$lib/settings/terminalService";
@@ -45,7 +46,10 @@
 	const { backend } = untrack(() => data);
 	initDependencies(untrack(() => data));
 
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const fModeEnabled = featureFlags.fModeEnabled;
 	const clientState = inject(CLIENT_STATE);
+	const env = inject(ENVIRONMENT_PROFILE);
 	const posthog = inject(POSTHOG_WRAPPER);
 	const uiState = inject(UI_STATE);
 	const terminalService = inject(TERMINAL_SERVICE);
@@ -184,7 +188,11 @@
 	<title>GitButler</title>
 </svelte:head>
 
-<div class="app-root" role="application" oncontextmenu={(e) => !dev && e.preventDefault()}>
+<div
+	class="app-root"
+	role="application"
+	oncontextmenu={(e) => !env.isDevelopment && e.preventDefault()}
+>
 	{@render children()}
 </div>
 <ShareIssueModal />
@@ -200,7 +208,7 @@
 <GlobalModalRouter />
 <FocusCursor />
 
-{#if import.meta.env.MODE === "development"}
+{#if env.isDevelopment}
 	<ReloadWarning />
 {/if}
 

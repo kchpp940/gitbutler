@@ -50,7 +50,7 @@
 	import IrcSendToSubmenus from "$components/diff/IrcSendToSubmenus.svelte";
 	import { CLIPBOARD_SERVICE } from "$lib/backend/clipboard";
 	import { URL_SERVICE } from "$lib/backend/url";
-	import { rewrapCommitMessage } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { DIFF_SERVICE } from "$lib/hunks/diffService.svelte";
 	import { IRC_API_SERVICE } from "$lib/irc/ircApiService";
 	import { Messages, serialize } from "$lib/irc/protocol";
@@ -88,6 +88,8 @@
 
 	const urlService = inject(URL_SERVICE);
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const rewrapCommitMessage = featureFlags.rewrapCommitMessage;
 	const clipboardService = inject(CLIPBOARD_SERVICE);
 	const modeService = injectOptional(MODE_SERVICE, undefined);
 	const diffService = inject(DIFF_SERVICE);

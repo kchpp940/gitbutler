@@ -3,7 +3,7 @@
 	import dependentBranchSvg from "$components/stackTabs/assets/dependent-branch.svg?raw";
 	import newStackLefttSvg from "$components/stackTabs/assets/new-stack-left.svg?raw";
 	import newStackRightSvg from "$components/stackTabs/assets/new-stack-right.svg?raw";
-	import { autoSelectBranchCreationFeature } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { useSettingsModal } from "$lib/settings/settingsModal.svelte";
 	import { getStackName } from "$lib/stacks/stack";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
@@ -30,6 +30,8 @@
 
 	let { projectId, stackId }: Props = $props();
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const autoSelectBranchCreationFeature = featureFlags.autoSelectBranchCreationFeature;
 	const [createNewStack, stackCreation] = stackService.newStack;
 	const [createNewBranch, branchCreation] = stackService.newBranch;
 	const { openGeneralSettings } = useSettingsModal();

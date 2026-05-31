@@ -1,4 +1,4 @@
-import { fromUnknown, emitDiagnostic } from "$lib/diagnostics/service";
+import { isReduxError } from "$lib/error/reduxError";
 import { getName, getVersion, getVersion as tauriGetVersion } from "@tauri-apps/api/app";
 import { invoke as invokeTauri } from "@tauri-apps/api/core";
 import { documentDir as documentDirTauri } from "@tauri-apps/api/path";
@@ -17,12 +17,18 @@ import { relaunch as relaunchTauri } from "@tauri-apps/plugin-process";
 import { Store } from "@tauri-apps/plugin-store";
 import { check as tauriCheck } from "@tauri-apps/plugin-updater";
 import { readable } from "svelte/store";
+import type { EnvironmentProfile } from "$lib/config/environmentProfile";
 import type { AppInfo, DeepLinkHandlers, DiskStore, IBackend } from "$lib/backend/backend";
 import type { EventCallback, EventName } from "@tauri-apps/api/event";
 
 export default class Tauri implements IBackend {
 	platformName = platform();
 	private appWindow: Window | undefined;
+	profile: EnvironmentProfile;
+
+	constructor(profile: EnvironmentProfile) {
+		this.profile = profile;
+	}
 
 	systemTheme = readable<string | null>(null, (set) => {
 		if (!this.appWindow) {
@@ -219,14 +225,27 @@ async function tauriGetAppInfo(): Promise<AppInfo> {
 }
 
 async function tauriInvoke<T>(command: string, params: Record<string, unknown> = {}): Promise<T> {
+	// This commented out code can be used to delay/reject an api call
+	// return new Promise<T>((resolve, reject) => {
+	// 	if (command.startsWith('apply')) {
+	// 		setTimeout(() => {
+	// 			reject('testing the error page');
+	// 		}, 500);
+	// 	} else {
+	// 		resolve(invokeTauri<T>(command, params));
+	// 	}
+	// }).catch((reason) => {
+	// 	const userError = UserError.fromError(reason);
+	// 	console.error(`ipc->${command}: ${JSON.stringify(params)}`, userError);
+	// 	throw userError;
+	// });
+
 	try {
 		return await invokeTauri<T>(command, params);
 	} catch (error: unknown) {
-		const event = fromUnknown("tauri:command", error, {
-			title: `IPC error: ${command}`,
-			context: { command, params },
-		});
-		emitDiagnostic(event);
+		if (isReduxError(error)) {
+			console.error(`ipc->${command}: ${JSON.stringify(params)}`, error);
+		}
 		throw error;
 	}
 }

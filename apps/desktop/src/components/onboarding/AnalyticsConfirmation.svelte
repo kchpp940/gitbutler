@@ -1,6 +1,7 @@
 <script lang="ts">
 	import AnalyticsSettings from "$components/shared/AnalyticsSettings.svelte";
 	import { initAnalyticsIfEnabled } from "$lib/analytics/analytics";
+	import { ENVIRONMENT_PROFILE } from "$lib/config/environmentLoader";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { OnboardingEvent, POSTHOG_WRAPPER } from "$lib/telemetry/posthog";
 	import { inject } from "@gitbutler/core/context";
@@ -9,6 +10,7 @@
 	const settingsService = inject(SETTINGS_SERVICE);
 	const appSettings = $derived(settingsService.appSettings);
 	const posthog = inject(POSTHOG_WRAPPER);
+	const profile = inject(ENVIRONMENT_PROFILE);
 </script>
 
 <div class="analytics-confirmation">
@@ -23,7 +25,7 @@
 				icon="chevron-right"
 				onclick={() => {
 					settingsService.updateOnboardingComplete(true);
-					initAnalyticsIfEnabled($appSettings, posthog, true).then(() => {
+					initAnalyticsIfEnabled($appSettings, posthog, profile, true).then(() => {
 						// Await the initialization before logging the event to ensure PostHog is ready
 						posthog.captureOnboarding(OnboardingEvent.ConfirmedAnalytics);
 					});

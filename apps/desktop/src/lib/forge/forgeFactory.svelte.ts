@@ -7,6 +7,7 @@ import { GitLab, GITLAB_DOMAIN, GITLAB_SUB_DOMAIN } from "$lib/forge/gitlab/gitl
 import { InjectionToken } from "@gitbutler/core/context";
 import { deepCompare } from "@gitbutler/shared/compare";
 import type { ForgeProvider } from "$lib/baseBranch/baseBranch";
+import type { ForgeProviderConfig } from "$lib/config/environmentProfile";
 import type { GitLabClient } from "$lib/forge/gitlab/gitlabClient.svelte";
 import type { Forge, ForgeName } from "$lib/forge/interface/forge";
 import type { RepoInfo } from "$lib/git/gitUrl";
@@ -39,7 +40,6 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 	private _determinedForgeType = $state<ForgeName>("default");
 	private _githubError = $state<{ code?: Code; message: string } | undefined>(undefined);
 	private _canSetupIntegration = $derived.by(() => {
-		// Don't show the setup prompt if there's a network error
 		if (this._githubError?.code === "NetworkError") {
 			return undefined;
 		}
@@ -59,6 +59,7 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 			gitLabApi: GitLabApi;
 			posthog: PostHogWrapper;
 			dispatch: AppDispatch;
+			forgeConfig: ForgeProviderConfig;
 		},
 	) {}
 
@@ -205,22 +206,23 @@ export class DefaultForgeFactory implements Reactive<Forge> {
 		if (detectedForgeProvider) {
 			return detectedForgeProvider;
 		}
+
 		const domain = repo.domain;
 
-		if (domain.includes(GITHUB_DOMAIN)) {
+		if (domain.includes(this.params.forgeConfig.github.defaultDomain)) {
 			return "github";
 		}
 		if (
-			domain === GITLAB_DOMAIN ||
-			domain.startsWith(GITLAB_SUB_DOMAIN + ".") ||
-			domain.startsWith("xy" + GITLAB_SUB_DOMAIN + ".") // Temporary workaround until we have foerge overrides implemented
+			domain === this.params.forgeConfig.gitlab.defaultDomain ||
+			domain.startsWith(this.params.forgeConfig.gitlab.subDomain + ".") ||
+			domain.startsWith("xy" + this.params.forgeConfig.gitlab.subDomain + ".")
 		) {
 			return "gitlab";
 		}
-		if (domain.includes(BITBUCKET_DOMAIN)) {
+		if (domain.includes(this.params.forgeConfig.bitbucket.defaultDomain)) {
 			return "bitbucket";
 		}
-		if (domain.includes(AZURE_DOMAIN)) {
+		if (domain.includes(this.params.forgeConfig.azure.defaultDomain)) {
 			return "azure";
 		}
 

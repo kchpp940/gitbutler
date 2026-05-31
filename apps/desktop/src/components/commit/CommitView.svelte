@@ -8,7 +8,7 @@
 	import ReduxResult from "$components/shared/ReduxResult.svelte";
 	import { type CommitKey } from "$lib/commits/commit";
 	import { splitMessage } from "$lib/commits/commitMessage";
-	import { rewrapCommitMessage } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { DEFAULT_FORGE_FACTORY } from "$lib/forge/forgeFactory.svelte";
 	import { MODE_SERVICE } from "$lib/mode/modeService";
 	import { showToast } from "$lib/notifications/toasts";
@@ -49,6 +49,8 @@
 	}: Props & { isInEditMessageMode?: boolean } = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const rewrapCommitMessage = featureFlags.rewrapCommitMessage;
 	const uiState = inject(UI_STATE);
 
 	// Component is read-only when stackId is undefined

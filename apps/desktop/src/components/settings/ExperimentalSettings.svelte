@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { fModeEnabled } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { SETTINGS_SERVICE } from "$lib/settings/appSettings";
 	import { USER_SERVICE } from "$lib/user/userService.svelte";
 	import { inject } from "@gitbutler/core/context";
 	import { CardGroup, Toggle } from "@gitbutler/ui";
 
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const fModeEnabled = featureFlags.fModeEnabled;
 	const settingsService = inject(SETTINGS_SERVICE);
 	const settingsStore = settingsService.appSettings;
 

@@ -4,7 +4,7 @@
 	import RulesList from "$components/rules/RulesList.svelte";
 	import UnassignedFoldButton from "$components/workspace/UnassignedFoldButton.svelte";
 	import noChanges from "$lib/assets/empty-state/no-new-changes.svg?raw";
-	import { stagingBehaviorFeature } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { FILE_SELECTION_MANAGER } from "$lib/selection/fileSelectionManager.svelte";
 	import { createWorktreeSelection } from "$lib/selection/key";
 	import { UNCOMMITTED_SERVICE } from "$lib/selection/uncommittedService.svelte";
@@ -25,6 +25,8 @@
 	const selectionId = createWorktreeSelection({ stackId: undefined });
 
 	const uiState = inject(UI_STATE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const stagingBehaviorFeature = featureFlags.stagingBehaviorFeature;
 	const uncommittedService = inject(UNCOMMITTED_SERVICE);
 	const idSelection = inject(FILE_SELECTION_MANAGER);
 	const posthog = inject(POSTHOG_WRAPPER);

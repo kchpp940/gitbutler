@@ -1,13 +1,13 @@
 <script lang="ts">
-	import {
-		autoSelectBranchNameFeature,
-		autoSelectBranchCreationFeature,
-		stagingBehaviorFeature,
-		type StagingBehavior,
-	} from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS, type StagingBehavior } from "$lib/config/uiFeatureFlagsService.svelte";
+	import { inject } from "@gitbutler/core/context";
 	import { persisted } from "@gitbutler/shared/persisted";
 	import { CardGroup, RadioButton, Toggle, Spacer } from "@gitbutler/ui";
 
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const autoSelectBranchCreationFeature = featureFlags.autoSelectBranchCreationFeature;
+	const autoSelectBranchNameFeature = featureFlags.autoSelectBranchNameFeature;
+	const stagingBehaviorFeature = featureFlags.stagingBehaviorFeature;
 	const addToLeftmost = persisted<boolean>(false, "branch-placement-leftmost");
 	function onStagingBehaviorFormChange(form: HTMLFormElement) {
 		const formData = new FormData(form);
@@ -47,7 +47,7 @@
 			<Toggle
 				id="auto-select-creation"
 				checked={$autoSelectBranchCreationFeature}
-				onclick={() => ($autoSelectBranchCreationFeature = !$autoSelectBranchCreationFeature)}
+				onclick={() => (autoSelectBranchCreationFeature.set(!$autoSelectBranchCreationFeature))}
 			/>
 		{/snippet}
 	</CardGroup.Item>
@@ -63,7 +63,7 @@
 			<Toggle
 				id="auto-select-rename"
 				checked={$autoSelectBranchNameFeature}
-				onclick={() => ($autoSelectBranchNameFeature = !$autoSelectBranchNameFeature)}
+				onclick={() => (autoSelectBranchNameFeature.set(!$autoSelectBranchNameFeature))}
 			/>
 		{/snippet}
 	</CardGroup.Item>

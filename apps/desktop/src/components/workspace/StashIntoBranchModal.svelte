@@ -1,7 +1,7 @@
 <script lang="ts">
 	import BranchNameTextbox from "$components/branch/BranchNameTextbox.svelte";
 	import { changesToDiffSpec } from "$lib/commits/utils";
-	import { autoSelectBranchCreationFeature } from "$lib/config/uiFeatureFlags";
+	import { UI_FEATURE_FLAGS } from "$lib/config/uiFeatureFlagsService.svelte";
 	import { isTreeChange } from "$lib/hunks/change";
 	import { STACK_SERVICE } from "$lib/stacks/stackService.svelte";
 	import { inject } from "@gitbutler/core/context";
@@ -35,6 +35,8 @@
 	const { projectId }: Props = $props();
 
 	const stackService = inject(STACK_SERVICE);
+	const featureFlags = inject(UI_FEATURE_FLAGS);
+	const autoSelectBranchCreationFeature = featureFlags.autoSelectBranchCreationFeature;
 
 	let modal: ReturnType<typeof Modal> | undefined;
 	let stashBranchName = $state<string>();

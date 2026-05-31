@@ -1,15 +1,16 @@
-import { dev } from "$app/environment";
 import * as Sentry from "@sentry/sveltekit";
-import { PUBLIC_SENTRY_ENVIRONMENT } from "$env/static/public";
+import type { EnvironmentProfile } from "$lib/config/environmentProfile";
 
 const { setUser, init } = Sentry;
 
-export function initSentry() {
+export function initSentry(profile: EnvironmentProfile) {
+	const sentryConfig = profile.analytics.sentry;
+
 	init({
-		enabled: !dev && import.meta.env.VITE_E2E !== "true",
-		dsn: "https://a35bbd6688a3a8f76e4956c6871f414a@o4504644069687296.ingest.sentry.io/4505976067129344",
-		environment: PUBLIC_SENTRY_ENVIRONMENT,
-		tracesSampleRate: 0,
+		enabled: sentryConfig.enabled,
+		dsn: sentryConfig.dsn,
+		environment: sentryConfig.environment,
+		tracesSampleRate: sentryConfig.tracesSampleRate,
 		tracePropagationTargets: ["localhost", /gitbutler\.com/i],
 	});
 }
